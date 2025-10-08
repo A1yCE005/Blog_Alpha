@@ -137,4 +137,4 @@ dist
 
 
 #tuner
-.app/tuner/page.tsx
+/app/tuner/
