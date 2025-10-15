@@ -6,14 +6,10 @@ import { useRouter } from "next/navigation";
 import { BlogMain } from "@/components/BlogMain";
 import type { PostSummary } from "@/lib/posts";
 
-import { BlogMain } from "@/components/BlogMain";
-
-import type { PostSummary } from "@/lib/posts";
-
 
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
 const CONFIG = {
-  word: "Lighthouse",
+  word: "Lighthosue",
   fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto",
   fontWeight: 800,
 
@@ -51,7 +47,7 @@ const CONFIG = {
   launchSpreadDeg: 24,
 
   // 待机轮播
-  idleTargets: ["Lighthouse", "Halo"],
+  idleTargets: ["Lighthosue", "Halo"],
   idleStartDelayMs: 1400,
   idleIntervalMs: 6000,
 
