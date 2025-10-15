@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { BlogMain } from "@/components/BlogMain";
 import type { PostSummary } from "@/lib/posts";
 
+
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
 const CONFIG = {
   word: "Lighthosue",
@@ -578,7 +579,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       canvas.removeEventListener("mouseleave", onLeave);
     };
     // 注意：不要把 word 放进依赖，否则切换时会重建动画导致闪烁
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [
     gap, letterSpacing,
     gravity, bounce, groundFriction,
@@ -606,10 +607,12 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 /** 全屏首页：首轮抛撒→汇聚；随后进入待机轮播（跳过落地，仅两阶段过渡） */
 type FullscreenHomeProps = {
   posts: PostSummary[];
+
   initialBlogView?: boolean;
 };
 
 export default function FullscreenHome({ posts, initialBlogView = false }: FullscreenHomeProps) {
+
   const [word, setWord] = React.useState(CONFIG.word);
   const [gap, setGap] = React.useState(CONFIG.sampleGap);
   const [morphK, setMorphK] = React.useState<number>(0.14);
@@ -617,12 +620,15 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   const [glyphSizePx, setGlyphSizePx] = React.useState<number | undefined>(undefined);
 
   const particlesRef = React.useRef<WordParticlesHandle | null>(null);
+
   const [hasEnteredBlog, setHasEnteredBlog] = React.useState(initialBlogView);
   const [blogVisible, setBlogVisible] = React.useState(initialBlogView);
   const [heroRetired, setHeroRetired] = React.useState(initialBlogView);
+
   const initialBlogRef = React.useRef(initialBlogView);
 
   const router = useRouter();
+
 
   // 轮播控制
   const [skipDrop, setSkipDrop] = React.useState(false);
@@ -709,6 +715,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     if (idleTimerRef.current) clearInterval(idleTimerRef.current);
     setWord(CONFIG.word);
 
+
     if (initialBlogRef.current) {
       initialBlogRef.current = false;
       setBlogVisible(true);
@@ -719,6 +726,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     enterTimerRef.current = window.setTimeout(() => {
       setBlogVisible(true);
       setHeroRetired(true);
+
     }, 700) as unknown as number;
     return () => {
       if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
@@ -733,10 +741,12 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
 
   const handleEnterBlog = React.useCallback(() => {
     if (hasEnteredBlog) return;
+
     router.replace("?view=blog", { scroll: false });
     setHasEnteredBlog(true);
     particlesRef.current?.triggerExit();
   }, [hasEnteredBlog, router]);
+
 
   const handleHeroKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -751,6 +761,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
 
   return (
     <div className="min-h-screen bg-black text-zinc-100">
+
       {!heroRetired && (
         <section
           className={`relative h-[100svh] w-full overflow-hidden transition-all duration-700 ease-out ${
@@ -802,6 +813,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
           )}
         </section>
       )}
+
       <BlogMain visible={blogVisible} posts={posts} />
     </div>
   );

@@ -12,9 +12,11 @@ export type PostSummary = {
   tags: string[];
 };
 
+
 export type PostContent = PostSummary & {
   content: string;
 };
+
 
 const POSTS_DIR = path.join(process.cwd(), "content", "posts");
 
@@ -43,6 +45,7 @@ function normalizeTags(raw: unknown): string[] {
   return [];
 }
 
+
 function truncateExcerpt(text: string, limit = 320) {
   if (text.length <= limit) return text;
   const truncated = text.slice(0, limit);
@@ -50,6 +53,7 @@ function truncateExcerpt(text: string, limit = 320) {
   const base = sanitized.length > 0 ? sanitized : truncated.trim();
   return `${base}…`;
 }
+
 
 async function parsePostFile(filePath: string, slug: string): Promise<PostContent> {
   const raw = await fs.readFile(filePath, "utf8");
@@ -63,6 +67,7 @@ async function parsePostFile(filePath: string, slug: string): Promise<PostConten
     typeof data.excerpt === "string" && data.excerpt.trim().length > 0
       ? data.excerpt
       : content.split(/\n\s*\n/)[0] ?? "";
+
 
   const cleanedExcerpt = excerptSource.replace(/\s+/g, " ").trim();
   const excerpt = truncateExcerpt(cleanedExcerpt);
@@ -118,4 +123,5 @@ export async function getPostBySlug(slug: string): Promise<PostContent | null> {
     }
     throw error;
   }
+
 }
