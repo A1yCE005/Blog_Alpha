@@ -8,7 +8,7 @@ type PageTransitionProps = {
   children: React.ReactNode;
 };
 
-const easing = [0.22, 1, 0.36, 1];
+type TransitionStage = "idle" | "exiting" | "entering";
 
 const OVERLAY_IN_SECONDS = 0.42;
 const OVERLAY_OUT_SECONDS = 0.45;
@@ -145,10 +145,10 @@ export function PageTransition({ children }: PageTransitionProps) {
   );
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
+    <div className="relative min-h-screen overflow-x-hidden bg-black">
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 bg-gradient-to-b from-transparent via-transparent to-black/40"
+        className={`pointer-events-none fixed inset-0 -z-10 bg-gradient-to-b from-transparent via-transparent to-black/40 transition-opacity duration-500 ease-out ${overlayOpacityClass}`}
       />
 
       {!shouldReduceMotion && (
