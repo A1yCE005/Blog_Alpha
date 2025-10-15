@@ -13,33 +13,9 @@ type PageTransitionProps = {
   children: React.ReactNode;
 };
 
-const easing = [0.22, 1, 0.36, 1];
+type TransitionStage = "idle" | "exiting" | "entering";
 
-const contentVariants = {
-  initial: {
-    opacity: 0,
-    y: 48,
-    filter: "blur(12px)",
-  },
-  enter: {
-    opacity: 1,
-    y: 0,
-    filter: "blur(0px)",
-    transition: { duration: 0.6, ease: easing },
-  },
-  exit: {
-    opacity: 0,
-    y: -48,
-    filter: "blur(12px)",
-    transition: { duration: 0.45, ease: easing },
-  },
-} as const;
-
-const reducedContentVariants = {
-  initial: { opacity: 0 },
-  enter: { opacity: 1, transition: { duration: 0.2 } },
-  exit: { opacity: 0, transition: { duration: 0.2 } },
-} as const;
+const TRANSITION_DURATION_MS = 500;
 
 const overlayVariants = {
   hidden: {
@@ -124,10 +100,10 @@ export function PageTransition({ children }: PageTransitionProps) {
   }, [pathname, overlayControls, shouldReduceMotion]);
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
+    <div className="relative min-h-screen overflow-x-hidden bg-black">
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 bg-gradient-to-b from-transparent via-transparent to-black/40"
+        className={`pointer-events-none fixed inset-0 -z-10 bg-gradient-to-b from-transparent via-transparent to-black/40 transition-opacity duration-500 ease-out ${overlayOpacityClass}`}
       />
 
       {!shouldReduceMotion && (
