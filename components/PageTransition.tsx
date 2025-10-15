@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  AnimatePresence,
+  motion,
+  useAnimationControls,
+  useReducedMotion,
+} from "framer-motion";
 import { usePathname } from "next/navigation";
 import React from "react";
 
@@ -11,67 +17,87 @@ type TransitionStage = "idle" | "exiting" | "entering";
 
 const TRANSITION_DURATION_MS = 500;
 
-const pageVariants = {
-  initial: {},
-  enter: {},
-  exit: {},
+const overlayVariants = {
+  hidden: {
+    opacity: 0,
+    backdropFilter: "blur(0px)",
+    transition: { duration: 0.4, ease: easing },
+  },
+  cover: {
+    opacity: 1,
+    backdropFilter: "blur(20px)",
+    transition: { duration: 0.4, ease: easing },
+  },
 } as const;
 
 export function PageTransition({ children }: PageTransitionProps) {
   const pathname = usePathname();
-
-  const [stage, setStage] = React.useState<TransitionStage>("idle");
-  const [renderedPath, setRenderedPath] = React.useState(pathname);
-  const [renderedChildren, setRenderedChildren] = React.useState(children);
-  const timeoutRef = React.useRef<number>();
+  const shouldReduceMotion = useReducedMotion();
+  const overlayControls = useAnimationControls();
+  const [isBlocking, setIsBlocking] = React.useState(false);
+  const [current, setCurrent] = React.useState(() => ({
+    key: pathname,
+    node: children,
+  }));
   const latestChildrenRef = React.useRef(children);
+  const previousPathRef = React.useRef(pathname);
 
   React.useEffect(() => {
     latestChildrenRef.current = children;
-    if (pathname === renderedPath) {
-      setRenderedChildren(children);
-    }
-  }, [children, pathname, renderedPath]);
+  }, [children]);
 
   React.useEffect(() => {
-    if (pathname === renderedPath) {
-      return;
-    }
-    setStage("exiting");
-  }, [pathname, renderedPath]);
+    overlayControls.set("hidden");
+  }, [overlayControls]);
 
   React.useEffect(() => {
-    window.clearTimeout(timeoutRef.current);
+    let cancelled = false;
 
-    if (stage === "idle") {
+    const updateImmediately = () => {
+      setCurrent({ key: pathname, node: latestChildrenRef.current });
+      previousPathRef.current = pathname;
+      setIsBlocking(false);
+    };
+
+    if (shouldReduceMotion) {
+      updateImmediately();
       return () => {
-        window.clearTimeout(timeoutRef.current);
+        cancelled = true;
       };
     }
 
-    timeoutRef.current = window.setTimeout(() => {
-      if (stage === "exiting") {
-        setRenderedChildren(latestChildrenRef.current);
-        setRenderedPath(pathname);
-        setStage("entering");
-      } else if (stage === "entering") {
-        setStage("idle");
-      }
-    }, TRANSITION_DURATION_MS) as unknown as number;
+    if (previousPathRef.current === pathname) {
+      updateImmediately();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setIsBlocking(true);
+
+    overlayControls
+      .start("cover")
+      .then(() => {
+        if (cancelled) return;
+        setCurrent({ key: pathname, node: latestChildrenRef.current });
+        previousPathRef.current = pathname;
+        return overlayControls.start("hidden");
+      })
+      .then(() => {
+        if (cancelled) return;
+        setIsBlocking(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setIsBlocking(false);
+      });
 
     return () => {
-      window.clearTimeout(timeoutRef.current);
+      cancelled = true;
+      overlayControls.stop();
+      setIsBlocking(false);
     };
-  }, [stage, pathname]);
-
-  React.useEffect(() => {
-    return () => {
-      window.clearTimeout(timeoutRef.current);
-    };
-  }, []);
-
-  const overlayOpacityClass = stage === "exiting" ? "opacity-100" : "opacity-0";
-  const contentOpacityClass = stage === "exiting" ? "opacity-0" : "opacity-100";
+  }, [pathname, overlayControls, shouldReduceMotion]);
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-black">
@@ -80,11 +106,30 @@ export function PageTransition({ children }: PageTransitionProps) {
         className={`pointer-events-none fixed inset-0 -z-10 bg-gradient-to-b from-transparent via-transparent to-black/40 transition-opacity duration-500 ease-out ${overlayOpacityClass}`}
       />
 
-      <div
-        className={`relative transition-opacity duration-500 ease-out ${contentOpacityClass}`}
-      >
-        {renderedChildren}
-      </div>
+      {!shouldReduceMotion && (
+        <motion.div
+          aria-hidden
+          className={`fixed inset-0 z-50 bg-gradient-to-b from-transparent via-transparent to-black/40 ${
+            isBlocking ? "pointer-events-auto" : "pointer-events-none"
+          }`}
+          variants={overlayVariants}
+          initial="hidden"
+          animate={overlayControls}
+        />
+      )}
+
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={current.key}
+          variants={shouldReduceMotion ? reducedContentVariants : contentVariants}
+          initial="initial"
+          animate="enter"
+          exit="exit"
+          className="relative"
+        >
+          {current.node}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
