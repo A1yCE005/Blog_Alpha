@@ -1,12 +1,9 @@
 ---
 title: "Faraway"
 date: "2024-10-07"
-author: A1yCE
-description: Chinese ver can be found in "archive" column
-categories: ["Literature"]
-tags: ["prose"]
-ShowReadingTime: true
-hideSummary: false
+tags:
+ - prose
+excerpt: Faraway days.
 ---
 
 During my middle school years, I composed an essay about my grandmother residing in the countryside, which moved my Chinese teacher profoundly. However, at that time, I did not perceive my writing as particularly authentic. I believed I was merely recording a chronological sequence, pruning the branches of memory for clarity. Undoubtedly, I genuinely appreciated my grandmother's house during that period—though now, describing it in such terms might seem somewhat juvenile. In contrast to my peers who affected naivety, I was the one genuinely immature, meticulously pondering whether my choice of words was childish. Standing here today, I recall those memories in vivid detail. I can still hear the clock, monotonously ticking away. Back when I had countless languid afternoons, that sound neither soothed nor perturbed me—I merely observed its persistence. Now, however, it seems I am the one lamenting the inexorable passage of time. The garden in the backyard, the corridor that once was, are now entangled with overgrowth, just like my memories. One cannot simultaneously retain both the essence of childhood, and sentiments it evokes.
