@@ -1,6 +1,10 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
+
+import { BlogMain } from "@/components/BlogMain";
+import type { PostSummary } from "@/lib/posts";
 
 import { BlogMain } from "@/components/BlogMain";
 
@@ -579,7 +583,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       canvas.removeEventListener("mouseleave", onLeave);
     };
     // 注意：不要把 word 放进依赖，否则切换时会重建动画导致闪烁
-    /* eslint-disable-next-line react-hooks/exhaustive-deps -- glyph outlines + word changes are tracked via refs to avoid tearing */
+
   }, [
     gap, letterSpacing,
     gravity, bounce, groundFriction,
@@ -607,9 +611,12 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 /** 全屏首页：首轮抛撒→汇聚；随后进入待机轮播（跳过落地，仅两阶段过渡） */
 type FullscreenHomeProps = {
   posts: PostSummary[];
+
+  initialBlogView?: boolean;
 };
 
-export default function FullscreenHome({ posts }: FullscreenHomeProps) {
+export default function FullscreenHome({ posts, initialBlogView = false }: FullscreenHomeProps) {
+
   const [word, setWord] = React.useState(CONFIG.word);
   const [gap, setGap] = React.useState(CONFIG.sampleGap);
   const [morphK, setMorphK] = React.useState<number>(0.14);
@@ -617,8 +624,13 @@ export default function FullscreenHome({ posts }: FullscreenHomeProps) {
   const [glyphSizePx, setGlyphSizePx] = React.useState<number | undefined>(undefined);
 
   const particlesRef = React.useRef<WordParticlesHandle | null>(null);
-  const [hasEnteredBlog, setHasEnteredBlog] = React.useState(false);
-  const [blogVisible, setBlogVisible] = React.useState(false);
+
+  const [hasEnteredBlog, setHasEnteredBlog] = React.useState(initialBlogView);
+  const [blogVisible, setBlogVisible] = React.useState(initialBlogView);
+  const initialBlogRef = React.useRef(initialBlogView);
+
+  const router = useRouter();
+
 
   // 轮播控制
   const [skipDrop, setSkipDrop] = React.useState(false);
@@ -704,6 +716,15 @@ export default function FullscreenHome({ posts }: FullscreenHomeProps) {
     if (idleStartRef.current) clearTimeout(idleStartRef.current);
     if (idleTimerRef.current) clearInterval(idleTimerRef.current);
     setWord(CONFIG.word);
+
+
+    if (initialBlogRef.current) {
+      initialBlogRef.current = false;
+      setBlogVisible(true);
+      return;
+    }
+
+
     enterTimerRef.current = window.setTimeout(() => {
       setBlogVisible(true);
     }, 700) as unknown as number;
@@ -720,9 +741,12 @@ export default function FullscreenHome({ posts }: FullscreenHomeProps) {
 
   const handleEnterBlog = React.useCallback(() => {
     if (hasEnteredBlog) return;
+
+    router.replace("?view=blog", { scroll: false });
     setHasEnteredBlog(true);
     particlesRef.current?.triggerExit();
-  }, [hasEnteredBlog]);
+  }, [hasEnteredBlog, router]);
+
 
   const handleHeroKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {

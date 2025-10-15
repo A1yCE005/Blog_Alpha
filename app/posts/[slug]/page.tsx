@@ -91,7 +91,9 @@ export default async function PostPage({ params }: PageProps) {
       <div className="mx-auto w-full max-w-3xl px-6 py-20 sm:px-10">
         <div className="mb-10">
           <Link
-            href="/"
+
+            href={{ pathname: "/", query: { view: "blog" } }}
+
             className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-500 transition-colors duration-200 hover:text-violet-200"
           >
             <span aria-hidden>←</span> Back to the cloud
