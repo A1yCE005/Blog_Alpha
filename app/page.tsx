@@ -1,7 +1,6 @@
 import LetterCloud from "@/components/LetterCloud";
 import { getAllPosts } from "@/lib/posts";
 
-
 type PageProps = {
   searchParams?: Record<string, string | string[] | undefined>;
 };
