@@ -5,6 +5,8 @@ import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 
 import { getAllPosts, getPostBySlug } from "@/lib/posts";
 
@@ -39,14 +41,44 @@ const markdownComponents: Components = {
   blockquote: ({ children }) => (
     <blockquote className="border-l-4 border-violet-400/40 pl-4 text-lg italic text-zinc-200">{children}</blockquote>
   ),
-  code: ({ inline, children }: any) =>
-    inline ? (
-      <code className="rounded bg-zinc-800/70 px-1.5 py-1 text-sm text-violet-200">{children}</code>
-    ) : (
-      <pre className="overflow-x-auto rounded-2xl bg-zinc-900/80 p-5">
-        <code className="text-sm text-zinc-200">{children}</code>
+  img: ({ src, alt }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src ?? ""}
+      alt={alt ?? ""}
+      className="mx-auto my-8 w-full max-w-3xl rounded-2xl border border-white/10 bg-zinc-900/40 object-contain"
+      loading="lazy"
+    />
+  ),
+  table: ({ children }) => (
+    <div className="my-8 overflow-x-auto rounded-2xl border border-white/10">
+      <table className="w-full border-collapse text-left text-sm text-zinc-200">{children}</table>
+    </div>
+  ),
+  th: ({ children }) => (
+    <th className="bg-white/5 px-4 py-3 font-semibold uppercase tracking-[0.2em] text-zinc-100">
+      {children}
+    </th>
+  ),
+  td: ({ children }) => <td className="px-4 py-3 text-zinc-300">{children}</td>,
+  code: ({ inline, className, children, ...props }: any) => {
+    const language = typeof className === "string" ? className.replace("language-", "") : undefined;
+    if (inline) {
+      return (
+        <code className="rounded bg-zinc-800/70 px-1.5 py-1 text-sm text-violet-200" {...props}>
+          {children}
+        </code>
+      );
+    }
+    return (
+      <pre className="overflow-x-auto rounded-2xl bg-zinc-900/80 p-5" data-language={language}>
+        <code className="text-sm text-zinc-200" {...props}>
+          {children}
+        </code>
       </pre>
-    ),
+    );
+  },
+  hr: () => <hr className="my-12 border-t border-white/10" />, 
 };
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -91,9 +123,7 @@ export default async function PostPage({ params }: PageProps) {
       <div className="mx-auto w-full max-w-3xl px-6 py-20 sm:px-10">
         <div className="mb-10">
           <Link
-
             href={{ pathname: "/", query: { view: "blog" } }}
-
             className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-500 transition-colors duration-200 hover:text-violet-200"
           >
             <span aria-hidden>←</span> Back to the cloud
@@ -126,7 +156,8 @@ export default async function PostPage({ params }: PageProps) {
         <article className="mt-12 flex flex-col gap-6 text-base text-zinc-200">
           <ReactMarkdown
             components={markdownComponents}
-            remarkPlugins={[remarkGfm]}
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[rehypeKatex]}
           >
             {post.content}
           </ReactMarkdown>

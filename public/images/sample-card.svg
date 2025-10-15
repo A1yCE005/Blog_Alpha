@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a855f7;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#14b8a6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="960" height="540" fill="#0b0b0f" />
+  <rect x="80" y="80" rx="48" ry="48" width="800" height="380" fill="url(#grad)" opacity="0.25" />
+  <text x="50%" y="45%" text-anchor="middle" fill="#e5e7eb" font-family="'Space Grotesk', sans-serif" font-size="72">Lighthosue</text>
+  <text x="50%" y="60%" text-anchor="middle" fill="#cbd5f5" font-family="'Space Grotesk', sans-serif" font-size="32">Sample Illustration</text>
+</svg>

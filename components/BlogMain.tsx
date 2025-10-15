@@ -1,8 +1,6 @@
-
 "use client";
 
 import Link from "next/link";
-
 import React from "react";
 
 import type { PostSummary } from "@/lib/posts";
@@ -18,9 +16,7 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
-
 export function BlogMain({ visible, posts }: BlogMainProps) {
-
   return (
     <div
       aria-hidden={!visible}
@@ -35,9 +31,7 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
       >
         <header className="flex flex-col gap-3 text-left">
           <p className="text-sm font-medium uppercase tracking-[0.3em] text-violet-300/80">The Journal</p>
-
           <h2 className="text-3xl font-semibold text-zinc-50 sm:text-4xl">Lighthosue</h2>
-
           <p className="max-w-2xl text-sm text-zinc-400 sm:text-base">
             Essays, signals, and experiments from the Letter Cloud studio. Click any post to keep the momentum of the particles going in your own practice.
           </p>
