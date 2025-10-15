@@ -11,6 +11,12 @@ type TransitionStage = "idle" | "exiting" | "entering";
 
 const TRANSITION_DURATION_MS = 500;
 
+const pageVariants = {
+  initial: {},
+  enter: {},
+  exit: {},
+} as const;
+
 export function PageTransition({ children }: PageTransitionProps) {
   const pathname = usePathname();
 
