@@ -32,8 +32,8 @@ const CONFIG = {
   bgSpeed: 0.25,
 
   // 首轮：抛撒→落地→汇聚
-  dropDurationMs: 1600,
-  morphDelayMs: 1200,
+  dropDurationMs: 1800,
+  morphDelayMs: 1600,
   gravity: 2.8,
   bounce: -0.28,
   groundFriction: 0.82,
