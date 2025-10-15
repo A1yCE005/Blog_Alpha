@@ -43,6 +43,7 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
               <Link
                 key={post.slug}
                 href={`/posts/${post.slug}`}
+                tabIndex={visible ? undefined : -1}
                 className="group relative block focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
                 <article className="flex flex-col gap-5 rounded-3xl border border-white/5 bg-gradient-to-b from-zinc-950/90 via-zinc-950/40 to-zinc-950/90 p-6 shadow-[0_30px_80px_-45px_rgba(167,139,250,0.55)] transition-transform duration-500 ease-out group-hover:-translate-y-1 group-hover:border-violet-400/60 group-hover:shadow-[0_45px_120px_-50px_rgba(167,139,250,0.65)]">

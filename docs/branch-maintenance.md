@@ -55,3 +55,34 @@ git branch -D <branch-name>
 
 Following this checklist keeps the repository lean while preventing accidental
 deletions of active work.
+
+## 5. Bring conversation branches up to date with `main`
+
+When a long-lived discussion branch drifts dozens of commits behind `main` it
+becomes harder to land new work and resolve conflicts. Use the steps below from
+your local clone (with remote access) to sync the branch before opening a pull
+request:
+
+```bash
+# 1. Make sure you have the latest commits from GitHub
+git fetch origin
+
+# 2. Switch to the branch that needs updating
+git checkout codex/find-purpose-and-details
+
+# 3. Rebase the branch onto the tip of main
+git pull --rebase origin main
+
+# 4. Resolve any conflicts, add the fixes, and continue the rebase
+git status          # shows files with conflicts
+git add <resolved-file>
+git rebase --continue
+
+# 5. Push the rebased branch back to GitHub
+git push --force-with-lease
+```
+
+If you prefer merge commits instead of rebasing, replace step 3 with
+`git merge origin/main` and push normally. The key is to fetch the latest `main`
+changes, resolve conflicts locally, and publish the updated history so the
+pull request diff reflects only the current work.
