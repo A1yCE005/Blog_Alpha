@@ -46,6 +46,15 @@ function normalizeTags(raw: unknown): string[] {
 }
 
 
+function truncateExcerpt(text: string, limit = 320) {
+  if (text.length <= limit) return text;
+  const truncated = text.slice(0, limit);
+  const sanitized = truncated.replace(/[\s\p{P}]+$/u, "").trim();
+  const base = sanitized.length > 0 ? sanitized : truncated.trim();
+  return `${base}…`;
+}
+
+
 async function parsePostFile(filePath: string, slug: string): Promise<PostContent> {
   const raw = await fs.readFile(filePath, "utf8");
   const { data, content } = matter(raw);
@@ -59,7 +68,9 @@ async function parsePostFile(filePath: string, slug: string): Promise<PostConten
       ? data.excerpt
       : content.split(/\n\s*\n/)[0] ?? "";
 
-  const excerpt = excerptSource.replace(/\s+/g, " ").trim();
+
+  const cleanedExcerpt = excerptSource.replace(/\s+/g, " ").trim();
+  const excerpt = truncateExcerpt(cleanedExcerpt);
 
   const readingTime =
     typeof data.readingTime === "string" && data.readingTime.trim().length > 0

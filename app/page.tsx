@@ -13,5 +13,4 @@ export default async function Page({ searchParams }: PageProps) {
   const initialBlogView = view === "blog";
 
   return <LetterCloud posts={posts} initialBlogView={initialBlogView} />;
-
 }

@@ -623,6 +623,8 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
 
   const [hasEnteredBlog, setHasEnteredBlog] = React.useState(initialBlogView);
   const [blogVisible, setBlogVisible] = React.useState(initialBlogView);
+  const [heroRetired, setHeroRetired] = React.useState(initialBlogView);
+
   const initialBlogRef = React.useRef(initialBlogView);
 
   const router = useRouter();
@@ -717,12 +719,14 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     if (initialBlogRef.current) {
       initialBlogRef.current = false;
       setBlogVisible(true);
+      setHeroRetired(true);
       return;
     }
 
-
     enterTimerRef.current = window.setTimeout(() => {
       setBlogVisible(true);
+      setHeroRetired(true);
+
     }, 700) as unknown as number;
     return () => {
       if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
@@ -757,55 +761,59 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
 
   return (
     <div className="min-h-screen bg-black text-zinc-100">
-      <section
-        className={`relative h-[100svh] w-full overflow-hidden transition-all duration-700 ease-out ${
-          hasEnteredBlog ? "scale-[0.98] opacity-40 blur-[1.5px]" : ""
-        }`}
-        onClick={handleEnterBlog}
-        onKeyDown={handleHeroKeyDown}
-        role="button"
-        tabIndex={hasEnteredBlog ? -1 : 0}
-        aria-pressed={hasEnteredBlog}
-        aria-label={hasEnteredBlog ? undefined : "Enter the Letter Cloud blog"}
-        aria-describedby={hasEnteredBlog ? undefined : "enter-instruction"}
-      >
-        <div className="absolute inset-0">
-          <WordParticles
-            ref={particlesRef}
-            word={word}
-            gap={gap}
-            letterSpacing={CONFIG.letterSpacing}
-            glyphSizePx={glyphSizePx}
-            gravity={CONFIG.gravity}
-            bounce={CONFIG.bounce}
-            groundFriction={CONFIG.groundFriction}
-            dropDurationMs={CONFIG.dropDurationMs}
-            morphDelayMs={CONFIG.morphDelayMs}
-            launchXFrac={CONFIG.launchXFrac}
-            launchYFrac={CONFIG.launchYFrac}
-            launchRadiusFrac={CONFIG.launchRadiusFrac}
-            launchSpeed={CONFIG.launchSpeed}
-            launchSpeedJitter={CONFIG.launchSpeedJitter}
-            launchAngleDeg={CONFIG.launchAngleDeg}
-            launchSpreadDeg={CONFIG.launchSpreadDeg}
-            morphK={morphK}
-            dockMaxOffset={dockMaxOffset}
-            skipDrop={skipDrop}
-          />
-        </div>
-        <h1 className="sr-only" aria-live="polite">{word}</h1>
-        {!hasEnteredBlog && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-16 flex justify-center">
-            <div
-              id="enter-instruction"
-              className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold tracking-[0.3em] text-zinc-200 backdrop-blur"
-            >
-              CLICK TO ENTER
-              <span aria-hidden className="animate-pulse text-violet-300">⟶</span>
-            </div>
+
+      {!heroRetired && (
+        <section
+          className={`relative h-[100svh] w-full overflow-hidden transition-all duration-700 ease-out ${
+            hasEnteredBlog ? "scale-[0.98] opacity-40 blur-[1.5px]" : ""
+          }`}
+          onClick={handleEnterBlog}
+          onKeyDown={handleHeroKeyDown}
+          role="button"
+          tabIndex={hasEnteredBlog ? -1 : 0}
+          aria-pressed={hasEnteredBlog}
+          aria-label={hasEnteredBlog ? undefined : "Enter the Letter Cloud blog"}
+          aria-describedby={hasEnteredBlog ? undefined : "enter-instruction"}
+        >
+          <div className="absolute inset-0">
+            <WordParticles
+              ref={particlesRef}
+              word={word}
+              gap={gap}
+              letterSpacing={CONFIG.letterSpacing}
+              glyphSizePx={glyphSizePx}
+              gravity={CONFIG.gravity}
+              bounce={CONFIG.bounce}
+              groundFriction={CONFIG.groundFriction}
+              dropDurationMs={CONFIG.dropDurationMs}
+              morphDelayMs={CONFIG.morphDelayMs}
+              launchXFrac={CONFIG.launchXFrac}
+              launchYFrac={CONFIG.launchYFrac}
+              launchRadiusFrac={CONFIG.launchRadiusFrac}
+              launchSpeed={CONFIG.launchSpeed}
+              launchSpeedJitter={CONFIG.launchSpeedJitter}
+              launchAngleDeg={CONFIG.launchAngleDeg}
+              launchSpreadDeg={CONFIG.launchSpreadDeg}
+              morphK={morphK}
+              dockMaxOffset={dockMaxOffset}
+              skipDrop={skipDrop}
+            />
           </div>
-        )}
-      </section>
+          <h1 className="sr-only" aria-live="polite">{word}</h1>
+          {!hasEnteredBlog && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-16 flex justify-center">
+              <div
+                id="enter-instruction"
+                className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold tracking-[0.3em] text-zinc-200 backdrop-blur"
+              >
+                CLICK TO ENTER
+                <span aria-hidden className="animate-pulse text-violet-300">⟶</span>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
       <BlogMain visible={blogVisible} posts={posts} />
     </div>
   );
