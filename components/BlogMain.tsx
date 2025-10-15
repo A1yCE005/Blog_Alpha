@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -7,6 +8,7 @@ import type { PostSummary } from "@/lib/posts";
 type BlogMainProps = {
   visible: boolean;
   posts: PostSummary[];
+
 };
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -14,6 +16,7 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   year: "numeric",
 });
+
 
 export function BlogMain({ visible, posts }: BlogMainProps) {
   const content = posts.length > 0 ? (
