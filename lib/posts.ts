@@ -12,6 +12,12 @@ export type PostSummary = {
   tags: string[];
 };
 
+
+export type PostContent = PostSummary & {
+  content: string;
+};
+
+
 const POSTS_DIR = path.join(process.cwd(), "content", "posts");
 
 function formatReadingTime(content: string) {
@@ -39,6 +45,38 @@ function normalizeTags(raw: unknown): string[] {
   return [];
 }
 
+
+async function parsePostFile(filePath: string, slug: string): Promise<PostContent> {
+  const raw = await fs.readFile(filePath, "utf8");
+  const { data, content } = matter(raw);
+
+  const title = typeof data.title === "string" ? data.title : slug;
+  const date = typeof data.date === "string" ? data.date : new Date().toISOString();
+  const tags = normalizeTags(data.tags);
+
+  const excerptSource =
+    typeof data.excerpt === "string" && data.excerpt.trim().length > 0
+      ? data.excerpt
+      : content.split(/\n\s*\n/)[0] ?? "";
+
+  const excerpt = excerptSource.replace(/\s+/g, " ").trim();
+
+  const readingTime =
+    typeof data.readingTime === "string" && data.readingTime.trim().length > 0
+      ? data.readingTime
+      : formatReadingTime(content);
+
+  return {
+    slug,
+    title,
+    excerpt,
+    date,
+    readingTime,
+    tags,
+    content,
+  } satisfies PostContent;
+}
+
 export async function getAllPosts(): Promise<PostSummary[]> {
   let files: string[] = [];
   try {
@@ -55,37 +93,24 @@ export async function getAllPosts(): Promise<PostSummary[]> {
     mdFiles.map(async (file) => {
       const slug = file.replace(/\.md$/, "");
       const filePath = path.join(POSTS_DIR, file);
-      const raw = await fs.readFile(filePath, "utf8");
-      const { data, content } = matter(raw);
-
-      const title = typeof data.title === "string" ? data.title : slug;
-      const date = typeof data.date === "string" ? data.date : new Date().toISOString();
-      const tags = normalizeTags(data.tags);
-
-      const excerptSource =
-        typeof data.excerpt === "string" && data.excerpt.trim().length > 0
-          ? data.excerpt
-          : content.split(/\n\s*\n/)[0] ?? "";
-
-      const excerpt = excerptSource.replace(/\s+/g, " ").trim();
-
-      const readingTime =
-        typeof data.readingTime === "string" && data.readingTime.trim().length > 0
-          ? data.readingTime
-          : formatReadingTime(content);
-
-      return {
-        slug,
-        title,
-        excerpt,
-        date,
-        readingTime,
-        tags,
-      } satisfies PostSummary;
+      return parsePostFile(filePath, slug);
     })
   );
 
-  return posts.sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
+  return posts
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .map(({ content, ...summary }) => summary);
+}
+
+export async function getPostBySlug(slug: string): Promise<PostContent | null> {
+  const filePath = path.join(POSTS_DIR, `${slug}.md`);
+  try {
+    return await parsePostFile(filePath, slug);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+
 }
