@@ -579,6 +579,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       canvas.removeEventListener("mouseleave", onLeave);
     };
     // 注意：不要把 word 放进依赖，否则切换时会重建动画导致闪烁
+    /* eslint-disable-next-line react-hooks/exhaustive-deps -- glyph outlines + word changes are tracked via refs to avoid tearing */
   }, [
     gap, letterSpacing,
     gravity, bounce, groundFriction,
