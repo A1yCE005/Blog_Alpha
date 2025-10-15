@@ -1,10 +1,5 @@
 "use client";
 
-import {
-  AnimatePresence,
-  motion,
-  useReducedMotion,
-} from "framer-motion";
 import { usePathname } from "next/navigation";
 import React from "react";
 
@@ -12,46 +7,9 @@ type PageTransitionProps = {
   children: React.ReactNode;
 };
 
-const easing = [0.22, 1, 0.36, 1];
+type TransitionStage = "idle" | "exiting" | "entering";
 
-const contentVariants = {
-  initial: {
-    opacity: 0,
-    y: 48,
-    filter: "blur(12px)",
-  },
-  enter: {
-    opacity: 1,
-    y: 0,
-    filter: "blur(0px)",
-    transition: { duration: 0.6, ease: easing },
-  },
-  exit: {
-    opacity: 0,
-    y: -48,
-    filter: "blur(12px)",
-    transition: { duration: 0.45, ease: easing },
-  },
-} as const;
-
-const reducedContentVariants = {
-  initial: { opacity: 0 },
-  enter: { opacity: 1, transition: { duration: 0.2 } },
-  exit: { opacity: 0, transition: { duration: 0.2 } },
-} as const;
-
-const overlayVariants = {
-  hidden: {
-    opacity: 0,
-    backdropFilter: "blur(0px)",
-    transition: { duration: 0.35, ease: easing },
-  },
-  cover: {
-    opacity: 1,
-    backdropFilter: "blur(20px)",
-    transition: { duration: 0.35, ease: easing },
-  },
-} as const;
+const TRANSITION_DURATION_MS = 500;
 
 const pageVariants = {
   initial: {},
@@ -61,53 +19,72 @@ const pageVariants = {
 
 export function PageTransition({ children }: PageTransitionProps) {
   const pathname = usePathname();
-  const shouldReduceMotion = useReducedMotion();
-  const [hasMounted, setHasMounted] = React.useState(false);
+
+  const [stage, setStage] = React.useState<TransitionStage>("idle");
+  const [renderedPath, setRenderedPath] = React.useState(pathname);
+  const [renderedChildren, setRenderedChildren] = React.useState(children);
+  const timeoutRef = React.useRef<number>();
+  const latestChildrenRef = React.useRef(children);
 
   React.useEffect(() => {
-    setHasMounted(true);
+    latestChildrenRef.current = children;
+    if (pathname === renderedPath) {
+      setRenderedChildren(children);
+    }
+  }, [children, pathname, renderedPath]);
+
+  React.useEffect(() => {
+    if (pathname === renderedPath) {
+      return;
+    }
+    setStage("exiting");
+  }, [pathname, renderedPath]);
+
+  React.useEffect(() => {
+    window.clearTimeout(timeoutRef.current);
+
+    if (stage === "idle") {
+      return () => {
+        window.clearTimeout(timeoutRef.current);
+      };
+    }
+
+    timeoutRef.current = window.setTimeout(() => {
+      if (stage === "exiting") {
+        setRenderedChildren(latestChildrenRef.current);
+        setRenderedPath(pathname);
+        setStage("entering");
+      } else if (stage === "entering") {
+        setStage("idle");
+      }
+    }, TRANSITION_DURATION_MS) as unknown as number;
+
+    return () => {
+      window.clearTimeout(timeoutRef.current);
+    };
+  }, [stage, pathname]);
+
+  React.useEffect(() => {
+    return () => {
+      window.clearTimeout(timeoutRef.current);
+    };
   }, []);
 
+  const overlayOpacityClass = stage === "exiting" ? "opacity-100" : "opacity-0";
+  const contentOpacityClass = stage === "exiting" ? "opacity-0" : "opacity-100";
+
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
+    <div className="relative min-h-screen overflow-x-hidden bg-black">
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 bg-gradient-to-b from-transparent via-transparent to-black/40"
+        className={`pointer-events-none fixed inset-0 -z-10 bg-gradient-to-b from-transparent via-transparent to-black/40 transition-opacity duration-500 ease-out ${overlayOpacityClass}`}
       />
 
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={pathname}
-          variants={pageVariants}
-          initial="initial"
-          animate="enter"
-          exit="exit"
-          className="relative"
-        >
-          {!shouldReduceMotion && (
-            <motion.div
-              key="overlay"
-              aria-hidden
-              className="pointer-events-none fixed inset-0 z-50 bg-gradient-to-b from-transparent via-transparent to-black/40"
-              variants={overlayVariants}
-              initial={hasMounted ? "cover" : "hidden"}
-              animate="hidden"
-              exit="cover"
-            />
-          )}
-
-          <motion.div
-            key={`content-${pathname}`}
-            variants={shouldReduceMotion ? reducedContentVariants : contentVariants}
-            initial="initial"
-            animate="enter"
-            exit="exit"
-            className="relative"
-          >
-            {children}
-          </motion.div>
-        </motion.div>
-      </AnimatePresence>
+      <div
+        className={`relative transition-opacity duration-500 ease-out ${contentOpacityClass}`}
+      >
+        {renderedChildren}
+      </div>
     </div>
   );
 }
