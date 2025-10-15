@@ -4,6 +4,9 @@ import React from "react";
 
 import { BlogMain } from "@/components/BlogMain";
 
+import type { PostSummary } from "@/lib/posts";
+
+
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
 const CONFIG = {
   word: "Lighthouse",
@@ -601,7 +604,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 });
 
 /** 全屏首页：首轮抛撒→汇聚；随后进入待机轮播（跳过落地，仅两阶段过渡） */
-export default function FullscreenHome() {
+type FullscreenHomeProps = {
+  posts: PostSummary[];
+};
+
+export default function FullscreenHome({ posts }: FullscreenHomeProps) {
   const [word, setWord] = React.useState(CONFIG.word);
   const [gap, setGap] = React.useState(CONFIG.sampleGap);
   const [morphK, setMorphK] = React.useState<number>(0.14);
@@ -778,7 +785,7 @@ export default function FullscreenHome() {
           </div>
         )}
       </section>
-      <BlogMain visible={blogVisible} />
+      <BlogMain visible={blogVisible} posts={posts} />
     </div>
   );
 }
