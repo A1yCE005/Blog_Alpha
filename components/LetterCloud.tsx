@@ -2,6 +2,8 @@
 
 import React from "react";
 
+import { BlogMain } from "@/components/BlogMain";
+
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
 const CONFIG = {
   word: "Lighthouse",
@@ -90,7 +92,12 @@ type WPProps = {
   skipDrop?: boolean;              // 轮播时 true：跳过落地，直接做两阶段过渡
 };
 
-function WordParticles(props: WPProps) {
+export type WordParticlesHandle = {
+  retarget(word: string): void;
+  triggerExit(): void;
+};
+
+const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function WordParticles(props, ref) {
   const {
     word = CONFIG.word,
     gap = CONFIG.sampleGap,
@@ -125,8 +132,22 @@ function WordParticles(props: WPProps) {
   const prefersReduced = usePrefersReducedMotion();
   const glyphs = React.useMemo(() => CONFIG.bgGlyphs.split(""), []);
 
-  // 用于“在位重定向”
+  // 用于“在位重定向”与退出动画触发
   const retargetRef = React.useRef<null | ((newWord: string) => void)>(null);
+  const exitTriggerRef = React.useRef<() => void>(() => {});
+
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      retarget(newWord: string) {
+        retargetRef.current?.(newWord);
+      },
+      triggerExit() {
+        exitTriggerRef.current?.();
+      }
+    }),
+    []
+  );
 
   React.useEffect(() => {
     const canvas = canvasRef.current!;
@@ -147,9 +168,10 @@ function WordParticles(props: WPProps) {
     let particles: P[] = [];
     let bg: Array<{x:number;y:number;c:string;t:number}> = [];
 
-    let phase: "drop" | "morph" = skipDrop ? "morph" : "drop";
+    let phase: "drop" | "morph" | "exit" = skipDrop ? "morph" : "drop";
     let wasMorph = phase === "morph";
     let morphElapsedMs = 0;
+    let exitElapsedMs = 0;
 
     let elapsedMs = 0, lastTs = 0;
 
@@ -308,6 +330,7 @@ function WordParticles(props: WPProps) {
 
     /** ★ 在位重定向：仅更新目标，不清场、不重建循环 */
     function retargetToWord(newWord: string) {
+      if (phase === "exit") return;
       renderWordToTemp(newWord);
       const targets = sampleTargetsFromTemp(gap);
       const need = targets.length;
@@ -354,6 +377,20 @@ function WordParticles(props: WPProps) {
     // 暴露给外层
     retargetRef.current = retargetToWord;
 
+    function triggerExit() {
+      if (phase === "exit") return;
+      phase = "exit";
+      exitElapsedMs = 0;
+      for (const p of particles) {
+        const ang = Math.random() * Math.PI * 2;
+        const speed = 4 + Math.random() * 5;
+        p.vx = Math.cos(ang) * speed * 0.9;
+        p.vy = Math.sin(ang) * speed * 0.6 - 2.5;
+      }
+    }
+
+    exitTriggerRef.current = triggerExit;
+
     function resize() {
       const rect = canvas.getBoundingClientRect();
       const w = Math.max(1, Math.floor(rect.width * DPR));
@@ -386,13 +423,17 @@ function WordParticles(props: WPProps) {
       (ctx as any).globalAlpha = 1;
 
       if (!prefersReduced) {
-        // 阶段切换
-        const morphT = dropDurationMs + morphDelayMs;
-        const newPhase: "drop" | "morph" = skipDrop ? "morph" : (elapsedMs >= morphT ? "morph" : "drop");
-        if (newPhase === "morph" && !wasMorph) morphElapsedMs = 0;
-        if (newPhase !== "morph")             morphElapsedMs = 0;
-        wasMorph = newPhase === "morph";
-        phase = newPhase;
+        if (phase !== "exit") {
+          // 阶段切换
+          const morphT = dropDurationMs + morphDelayMs;
+          const newPhase: "drop" | "morph" = skipDrop ? "morph" : (elapsedMs >= morphT ? "morph" : "drop");
+          if (newPhase === "morph" && !wasMorph) morphElapsedMs = 0;
+          if (newPhase !== "morph")             morphElapsedMs = 0;
+          wasMorph = newPhase === "morph";
+          phase = newPhase;
+        } else {
+          exitElapsedMs += dt;
+        }
 
         // 平滑鼠标
         const a = Math.min(0.9, CONFIG.mouseSmooth * fscale);
@@ -416,7 +457,7 @@ function WordParticles(props: WPProps) {
               if (p.x < wall) { p.x = wall; p.vx = -p.vx * 0.7; }
               else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
             } else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
-          } else {
+          } else if (phase === "morph") {
             // ——两阶段形态过渡——
             morphElapsedMs += dt;
 
@@ -466,10 +507,24 @@ function WordParticles(props: WPProps) {
             p.x += dx * tt; p.y += dy * tt;
 
             if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
+          } else {
+            // ——退出阶段：向四周喷散 + 淡出——
+            p.vy += gravity * 0.04 * fscale;
+            p.vx *= 0.985;
+            p.vy *= 0.985;
+            p.x += p.vx * fscale;
+            p.y += p.vy * fscale;
           }
         }
       } else {
-        for (const p of particles) { p.x = p.tx; p.y = p.ty; }
+        for (const p of particles) {
+          if (phase === "exit") {
+            p.x += p.vx ?? 0;
+            p.y += p.vy ?? 0;
+          } else {
+            p.x = p.tx; p.y = p.ty;
+          }
+        }
       }
 
       // 绘制粒子字符
@@ -483,7 +538,10 @@ function WordParticles(props: WPProps) {
       for (const p of particles) {
         // 轻微淡入
         let alpha = 1;
-        if (wasMorph) {
+        if (phase === "exit") {
+          const fade = 1 - clamp01(exitElapsedMs / 1400);
+          alpha = Math.max(0, fade);
+        } else if (wasMorph) {
           const tLocal = clamp01((morphElapsedMs - (p.d || 0)) / (CONFIG.transitionMs || 1200));
           alpha = 0.85 + 0.15 * easeInOut(tLocal);
         }
@@ -540,7 +598,7 @@ function WordParticles(props: WPProps) {
       )}
     </div>
   );
-}
+});
 
 /** 全屏首页：首轮抛撒→汇聚；随后进入待机轮播（跳过落地，仅两阶段过渡） */
 export default function FullscreenHome() {
@@ -550,11 +608,16 @@ export default function FullscreenHome() {
   const [dockMaxOffset, setDockMaxOffset] = React.useState<number>(10);
   const [glyphSizePx, setGlyphSizePx] = React.useState<number | undefined>(undefined);
 
+  const particlesRef = React.useRef<WordParticlesHandle | null>(null);
+  const [hasEnteredBlog, setHasEnteredBlog] = React.useState(false);
+  const [blogVisible, setBlogVisible] = React.useState(false);
+
   // 轮播控制
   const [skipDrop, setSkipDrop] = React.useState(false);
   const idleIdxRef = React.useRef(0);
   const idleTimerRef = React.useRef<number | undefined>(undefined);
   const idleStartRef = React.useRef<number | undefined>(undefined);
+  const enterTimerRef = React.useRef<number | undefined>(undefined);
 
   // 接收 /tuner 广播
   React.useEffect(() => {
@@ -628,11 +691,59 @@ export default function FullscreenHome() {
     };
   }, []);
 
+  React.useEffect(() => {
+    if (!hasEnteredBlog) return;
+    if (idleStartRef.current) clearTimeout(idleStartRef.current);
+    if (idleTimerRef.current) clearInterval(idleTimerRef.current);
+    setWord(CONFIG.word);
+    enterTimerRef.current = window.setTimeout(() => {
+      setBlogVisible(true);
+    }, 700) as unknown as number;
+    return () => {
+      if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
+    };
+  }, [hasEnteredBlog]);
+
+  React.useEffect(() => {
+    return () => {
+      if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
+    };
+  }, []);
+
+  const handleEnterBlog = React.useCallback(() => {
+    if (hasEnteredBlog) return;
+    setHasEnteredBlog(true);
+    particlesRef.current?.triggerExit();
+  }, [hasEnteredBlog]);
+
+  const handleHeroKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (hasEnteredBlog) return;
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        handleEnterBlog();
+      }
+    },
+    [handleEnterBlog, hasEnteredBlog]
+  );
+
   return (
     <div className="min-h-screen bg-black text-zinc-100">
-      <section className="relative h-[100svh] w-full overflow-hidden">
+      <section
+        className={`relative h-[100svh] w-full overflow-hidden transition-all duration-700 ease-out ${
+          hasEnteredBlog ? "scale-[0.98] opacity-40 blur-[1.5px]" : ""
+        }`}
+        onClick={handleEnterBlog}
+        onKeyDown={handleHeroKeyDown}
+        role="button"
+        tabIndex={hasEnteredBlog ? -1 : 0}
+        aria-pressed={hasEnteredBlog}
+        aria-label={hasEnteredBlog ? undefined : "Enter the Letter Cloud blog"}
+        aria-describedby={hasEnteredBlog ? undefined : "enter-instruction"}
+      >
         <div className="absolute inset-0">
           <WordParticles
+            ref={particlesRef}
             word={word}
             gap={gap}
             letterSpacing={CONFIG.letterSpacing}
@@ -655,7 +766,19 @@ export default function FullscreenHome() {
           />
         </div>
         <h1 className="sr-only" aria-live="polite">{word}</h1>
+        {!hasEnteredBlog && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-16 flex justify-center">
+            <div
+              id="enter-instruction"
+              className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold tracking-[0.3em] text-zinc-200 backdrop-blur"
+            >
+              CLICK TO ENTER
+              <span aria-hidden className="animate-pulse text-violet-300">⟶</span>
+            </div>
+          </div>
+        )}
       </section>
+      <BlogMain visible={blogVisible} />
     </div>
   );
 }
