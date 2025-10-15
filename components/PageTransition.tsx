@@ -53,9 +53,20 @@ const overlayVariants = {
   },
 } as const;
 
+const pageVariants = {
+  initial: {},
+  enter: {},
+  exit: {},
+} as const;
+
 export function PageTransition({ children }: PageTransitionProps) {
   const pathname = usePathname();
   const shouldReduceMotion = useReducedMotion();
+  const [hasMounted, setHasMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   return (
     <div className="relative min-h-screen overflow-x-hidden">
@@ -65,29 +76,36 @@ export function PageTransition({ children }: PageTransitionProps) {
       />
 
       <AnimatePresence mode="wait" initial={false}>
-        {!shouldReduceMotion && (
-          <motion.div
-            key={`overlay-${pathname}`}
-            aria-hidden
-            className="pointer-events-none fixed inset-0 z-50 bg-gradient-to-b from-transparent via-transparent to-black/40"
-            variants={overlayVariants}
-            initial="cover"
-            animate="hidden"
-            exit="cover"
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={pathname}
-          variants={shouldReduceMotion ? reducedContentVariants : contentVariants}
+          variants={pageVariants}
           initial="initial"
           animate="enter"
           exit="exit"
           className="relative"
         >
-          {children}
+          {!shouldReduceMotion && (
+            <motion.div
+              key="overlay"
+              aria-hidden
+              className="pointer-events-none fixed inset-0 z-50 bg-gradient-to-b from-transparent via-transparent to-black/40"
+              variants={overlayVariants}
+              initial={hasMounted ? "cover" : "hidden"}
+              animate="hidden"
+              exit="cover"
+            />
+          )}
+
+          <motion.div
+            key={`content-${pathname}`}
+            variants={shouldReduceMotion ? reducedContentVariants : contentVariants}
+            initial="initial"
+            animate="enter"
+            exit="exit"
+            className="relative"
+          >
+            {children}
+          </motion.div>
         </motion.div>
       </AnimatePresence>
     </div>
