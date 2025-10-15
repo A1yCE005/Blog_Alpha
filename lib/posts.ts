@@ -12,9 +12,11 @@ export type PostSummary = {
   tags: string[];
 };
 
+
 export type PostContent = PostSummary & {
   content: string;
 };
+
 
 const POSTS_DIR = path.join(process.cwd(), "content", "posts");
 
@@ -42,6 +44,7 @@ function normalizeTags(raw: unknown): string[] {
   }
   return [];
 }
+
 
 async function parsePostFile(filePath: string, slug: string): Promise<PostContent> {
   const raw = await fs.readFile(filePath, "utf8");
@@ -109,4 +112,5 @@ export async function getPostBySlug(slug: string): Promise<PostContent | null> {
     }
     throw error;
   }
+
 }

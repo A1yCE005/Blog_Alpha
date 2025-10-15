@@ -1,6 +1,8 @@
+
 "use client";
 
 import Link from "next/link";
+
 import React from "react";
 
 import type { PostSummary } from "@/lib/posts";
@@ -16,7 +18,9 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
+
 export function BlogMain({ visible, posts }: BlogMainProps) {
+
   return (
     <div
       aria-hidden={!visible}
