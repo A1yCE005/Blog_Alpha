@@ -33,7 +33,7 @@ a { text-decoration: none; }
   background: #000;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 300ms ease;
+  transition: opacity 400ms ease;
 }
 
 .page-transition-overlay-active {
