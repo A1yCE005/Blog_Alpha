@@ -18,6 +18,49 @@ const OVERLAY_FADE_OUT_MS = 520;
 export function PageTransition({ children }: PageTransitionProps) {
   const pathname = usePathname();
   const shouldReduceMotion = useReducedMotion();
+  const [showOverlay, setShowOverlay] = React.useState(false);
+  const overlayTimeoutRef = React.useRef<number | null>(null);
+  const isInitialRenderRef = React.useRef(true);
+
+  React.useEffect(() => {
+    if (overlayTimeoutRef.current) {
+      window.clearTimeout(overlayTimeoutRef.current);
+      overlayTimeoutRef.current = null;
+    }
+
+    if (shouldReduceMotion) {
+      setShowOverlay(false);
+      isInitialRenderRef.current = false;
+      return;
+    }
+
+    if (isInitialRenderRef.current) {
+      isInitialRenderRef.current = false;
+      return;
+    }
+
+    setShowOverlay(true);
+
+    overlayTimeoutRef.current = window.setTimeout(() => {
+      setShowOverlay(false);
+      overlayTimeoutRef.current = null;
+    }, OVERLAY_VISIBLE_MS);
+
+    return () => {
+      if (overlayTimeoutRef.current) {
+        window.clearTimeout(overlayTimeoutRef.current);
+        overlayTimeoutRef.current = null;
+      }
+    };
+  }, [pathname, shouldReduceMotion]);
+
+  React.useEffect(() => {
+    return () => {
+      if (overlayTimeoutRef.current) {
+        window.clearTimeout(overlayTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const [currentPath, setCurrentPath] = React.useState(pathname);
   const [renderedChildren, setRenderedChildren] = React.useState(children);
@@ -127,10 +170,10 @@ export function PageTransition({ children }: PageTransitionProps) {
   }
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
+    <div className="relative min-h-screen overflow-x-hidden bg-black">
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 bg-gradient-to-b from-transparent via-transparent to-black/40"
+        className={`pointer-events-none fixed inset-0 -z-10 bg-gradient-to-b from-transparent via-transparent to-black/40 transition-opacity duration-500 ease-out ${overlayOpacityClass}`}
       />
 
       {!shouldReduceMotion && <div aria-hidden className={overlayClass} />}
