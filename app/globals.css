@@ -1,3 +1,15 @@
+@import "highlight.js/styles/github-dark.css";
+
+.page-content pre code.hljs,
+article pre code.hljs,
+pre code.hljs {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  display: block;
+  padding: 0;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
