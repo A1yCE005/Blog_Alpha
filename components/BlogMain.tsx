@@ -5,6 +5,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 
 import type { PostSummary } from "@/lib/posts";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
 type BlogMainProps = {
   visible: boolean;
@@ -18,34 +19,6 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 const TRANSITION_DURATION_MS = 300;
-
-function usePrefersReducedMotion() {
-  const [prefersReducedMotion, setPrefersReducedMotion] = React.useState(false);
-
-  React.useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setPrefersReducedMotion(mediaQuery.matches);
-
-    const listener = (event: MediaQueryListEvent) => {
-      setPrefersReducedMotion(event.matches);
-    };
-
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", listener);
-      return () => mediaQuery.removeEventListener("change", listener);
-    }
-
-    // Fallback for older browsers that use addListener/removeListener
-    if (typeof mediaQuery.addListener === "function") {
-      mediaQuery.addListener(listener);
-      return () => mediaQuery.removeListener(listener);
-    }
-
-    return undefined;
-  }, []);
-
-  return prefersReducedMotion;
-}
 
 export function BlogMain({ visible, posts }: BlogMainProps) {
   const router = useRouter();
