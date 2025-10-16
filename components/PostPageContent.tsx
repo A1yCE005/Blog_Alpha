@@ -8,6 +8,7 @@ import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import rehypeHighlight from "rehype-highlight";
 
 import type { PostContent } from "@/lib/posts";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
@@ -74,7 +75,7 @@ const markdownComponents: Components = {
     }
     return (
       <pre className="overflow-x-auto rounded-2xl bg-zinc-900/80 p-5" data-language={language}>
-        <code className="text-sm text-zinc-200" {...props}>
+        <code className={`text-sm ${className ?? ""}`} {...props}>
           {children}
         </code>
       </pre>
@@ -188,7 +189,7 @@ export function PostPageContent({ post }: PostPageContentProps) {
             <ReactMarkdown
               components={markdownComponents}
               remarkPlugins={[remarkGfm, remarkMath]}
-              rehypePlugins={[rehypeKatex]}
+              rehypePlugins={[rehypeKatex, rehypeHighlight]}
             >
               {post.content}
             </ReactMarkdown>
