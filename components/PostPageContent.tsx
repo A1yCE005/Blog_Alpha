@@ -74,10 +74,7 @@ const markdownComponents: Components = {
       );
     }
     return (
-      <pre
-        className="overflow-x-auto rounded-2xl bg-zinc-900/80 px-5 pb-7 pt-5"
-        data-language={language}
-      >
+      <pre className="overflow-x-auto rounded-2xl bg-zinc-900/80 px-5 py-5" data-language={language}>
         <code className={`text-sm ${className ?? ""}`} {...props}>
           {children}
         </code>
