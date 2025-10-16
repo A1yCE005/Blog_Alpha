@@ -119,7 +119,7 @@ export default async function PostPage({ params }: PageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-black page-fade-in">
       <div className="mx-auto w-full max-w-3xl px-6 py-20 sm:px-10">
         <div className="mb-10">
           <Link
