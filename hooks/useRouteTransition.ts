@@ -4,6 +4,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { PAGE_TRANSITION_DURATION_MS } from "@/lib/transitions";
 
 type UseRouteTransitionOptions = {
   durationMs?: number;
@@ -18,7 +19,7 @@ type RouteTransitionHandler = (
 ) => void;
 
 export function useRouteTransition({
-  durationMs = 300,
+  durationMs = PAGE_TRANSITION_DURATION_MS,
 }: UseRouteTransitionOptions = {}): {
   isTransitioning: boolean;
   transitionKey: string | null;

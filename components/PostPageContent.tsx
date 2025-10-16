@@ -9,6 +9,7 @@ import rehypeKatex from "rehype-katex";
 
 import type { PostContent } from "@/lib/posts";
 import { useRouteTransition } from "@/hooks/useRouteTransition";
+import { PAGE_TRANSITION_DURATION_MS } from "@/lib/transitions";
 
 const markdownComponents: Components = {
   h1: ({ children }) => (
@@ -92,7 +93,9 @@ type PostPageContentProps = {
 };
 
 export function PostPageContent({ post }: PostPageContentProps) {
-  const { isTransitioning, handleRouteTransition } = useRouteTransition();
+  const { isTransitioning, handleRouteTransition } = useRouteTransition({
+    durationMs: PAGE_TRANSITION_DURATION_MS,
+  });
 
   return (
     <>

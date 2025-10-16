@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import type { PostSummary } from "@/lib/posts";
 import { useRouteTransition } from "@/hooks/useRouteTransition";
+import { PAGE_TRANSITION_DURATION_MS } from "@/lib/transitions";
 
 type BlogMainProps = {
   visible: boolean;
@@ -17,7 +18,9 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 export function BlogMain({ visible, posts }: BlogMainProps) {
-  const { isTransitioning, handleRouteTransition } = useRouteTransition();
+  const { isTransitioning, handleRouteTransition } = useRouteTransition({
+    durationMs: PAGE_TRANSITION_DURATION_MS,
+  });
 
   const isInteractive = visible && !isTransitioning;
 

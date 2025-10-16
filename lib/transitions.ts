@@ -1,0 +1,4 @@
+export const PAGE_TRANSITION_DURATION_MS = 300;
+export const PAGE_TRANSITION_EASING = "ease-out";
+
+export const PAGE_TRANSITION_DURATION = `${PAGE_TRANSITION_DURATION_MS}ms`;
