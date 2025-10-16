@@ -65,7 +65,6 @@ const markdownComponents: Components = {
   ),
   td: ({ children }) => <td className="px-4 py-3 text-zinc-300">{children}</td>,
   code: ({ inline, className, children, ...props }: any) => {
-    const language = typeof className === "string" ? className.replace("language-", "") : undefined;
     if (inline) {
       return (
         <code className="rounded bg-zinc-800/70 px-1.5 py-1 text-sm text-violet-200" {...props}>
@@ -73,11 +72,28 @@ const markdownComponents: Components = {
         </code>
       );
     }
+
     return (
-      <pre className="overflow-x-auto rounded-2xl bg-zinc-900/80 px-5 py-5" data-language={language}>
-        <code className={`text-sm ${className ?? ""}`} {...props}>
-          {children}
-        </code>
+      <code className={`text-sm ${className ?? ""}`} {...props}>
+        {children}
+      </code>
+    );
+  },
+  pre: ({ children, ...props }) => {
+    const child = React.Children.only(children) as React.ReactElement<{ className?: string }> | undefined;
+    const languageMatch =
+      child && typeof child.props.className === "string"
+        ? child.props.className.match(/language-([\w-]+)/)
+        : null;
+    const language = languageMatch?.[1];
+
+    return (
+      <pre
+        className="overflow-x-auto rounded-2xl bg-zinc-900/80 px-5 py-5"
+        data-language={language}
+        {...props}
+      >
+        {children}
       </pre>
     );
   },
