@@ -65,6 +65,7 @@ const markdownComponents: Components = {
   td: ({ children }) => <td className="px-4 py-3 text-zinc-300">{children}</td>,
   code: ({ inline, className, children, ...props }: any) => {
     const language = typeof className === "string" ? className.replace("language-", "") : undefined;
+    const codeClassName = ["text-sm text-zinc-200", className].filter(Boolean).join(" ");
     if (inline) {
       return (
         <code className="rounded bg-zinc-800/70 px-1.5 py-1 text-sm text-violet-200" {...props}>
@@ -74,7 +75,7 @@ const markdownComponents: Components = {
     }
     return (
       <pre className="overflow-x-auto rounded-2xl bg-zinc-900/80 p-5" data-language={language}>
-        <code className="text-sm text-zinc-200" {...props}>
+        <code className={codeClassName} {...props}>
           {children}
         </code>
       </pre>

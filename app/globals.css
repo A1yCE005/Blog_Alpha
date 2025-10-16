@@ -10,6 +10,26 @@ html, body { height: 100%; }
 body { color: var(--foreground); background: var(--background); }
 a { text-decoration: none; }
 
+pre[data-language] {
+  position: relative;
+}
+
+pre[data-language]::before {
+  content: attr(data-language);
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: rgba(139, 92, 246, 0.12);
+  color: #c4b5fd;
+  pointer-events: none;
+}
+
 @keyframes pageFadeIn {
   from {
     opacity: 0;
