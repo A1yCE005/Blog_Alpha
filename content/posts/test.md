@@ -12,9 +12,9 @@ Test of word with [Link](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
 
 >Stay hungry, stay foolish.
 >
->--<cite>Steve Jobs[^1]</cite>
+>*Steve Jobs*
 
-[^1]:Test of Notating.
+
 
 `This is inline code`
 
@@ -40,8 +40,8 @@ def get_image_aspect_ratios_and_buckets(folder_path, bucket_resolutions):
 
     return aspect_ratios_count, bucket_count
 ```
-<br>
-<p>test of partial <span class="hw">Special</span> font<p>
+
+
 
 1. Ordered list
 2. Content 1
@@ -56,6 +56,5 @@ $$ e^{i\pi} + 1 = 0 $$
 $$ \varphi = 1+\frac{1}{1+\frac{1}{1+\cdots}} $$
 
 
-This is nuclear <mark>H<sub>2</sub>O</mark> 
 
 [![Test-Image.jpg](https://i.postimg.cc/PxSfdtZ0/Test-Image.jpg)](https://postimg.cc/BL1fgfmC)
