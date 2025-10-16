@@ -738,17 +738,6 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     particlesRef.current?.triggerExit();
   }, [hasEnteredBlog, router]);
 
-  const handleHeroKeyDown = React.useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (hasEnteredBlog) return;
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        handleEnterBlog();
-      }
-    },
-    [handleEnterBlog, hasEnteredBlog]
-  );
-
   return (
     <div className="min-h-screen bg-black text-zinc-100">
       {!heroRetired && (
@@ -756,13 +745,6 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
           className={`relative h-[100svh] w-full overflow-hidden transition-all duration-700 ease-out ${
             hasEnteredBlog ? "scale-[0.98] opacity-40 blur-[1.5px]" : ""
           }`}
-          onClick={handleEnterBlog}
-          onKeyDown={handleHeroKeyDown}
-          role="button"
-          tabIndex={hasEnteredBlog ? -1 : 0}
-          aria-pressed={hasEnteredBlog}
-          aria-label={hasEnteredBlog ? undefined : "Enter the Letter Cloud blog"}
-          aria-describedby={hasEnteredBlog ? undefined : "enter-instruction"}
         >
           <div className="absolute inset-0">
             <WordParticles
@@ -791,13 +773,14 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
           <h1 className="sr-only" aria-live="polite">{word}</h1>
           {!hasEnteredBlog && (
             <div className="pointer-events-none absolute inset-x-0 bottom-16 flex justify-center">
-              <div
-                id="enter-instruction"
-                className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold tracking-[0.3em] text-zinc-200 backdrop-blur"
+              <button
+                type="button"
+                onClick={handleEnterBlog}
+                className="pointer-events-auto group flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold tracking-[0.3em] text-zinc-200 backdrop-blur shadow-[0_30px_80px_-45px_rgba(167,139,250,0.55)] transition-transform duration-300 ease-out hover:-translate-y-0.5 hover:scale-[1.02] hover:border-violet-400/60 hover:shadow-[0_45px_120px_-50px_rgba(167,139,250,0.65)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
                 CLICK TO ENTER
-                <span aria-hidden className="animate-pulse text-violet-300">⟶</span>
-              </div>
+                <span aria-hidden className="animate-pulse text-violet-300 transition-transform duration-300 group-hover:translate-x-1">⟶</span>
+              </button>
             </div>
           )}
         </section>
