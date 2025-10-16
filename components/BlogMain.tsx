@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import React from "react";
-import { useRouter } from "next/navigation";
 
 import type { PostSummary } from "@/lib/posts";
-import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { useRouteTransition } from "@/hooks/useRouteTransition";
 
 type BlogMainProps = {
   visible: boolean;
@@ -18,61 +16,16 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
-const TRANSITION_DURATION_MS = 300;
-
 export function BlogMain({ visible, posts }: BlogMainProps) {
-  const router = useRouter();
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const [transitioningSlug, setTransitioningSlug] = React.useState<string | null>(null);
-  const transitionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { isTransitioning, handleRouteTransition } = useRouteTransition();
 
-  React.useEffect(() => {
-    return () => {
-      if (transitionTimeoutRef.current) {
-        clearTimeout(transitionTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const handlePostClick = React.useCallback(
-    (event: React.MouseEvent<HTMLAnchorElement>, slug: string) => {
-      if (prefersReducedMotion) {
-        return;
-      }
-
-      if (
-        event.defaultPrevented ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        event.altKey ||
-        event.button !== 0
-      ) {
-        return;
-      }
-
-      if (transitioningSlug) {
-        event.preventDefault();
-        return;
-      }
-
-      event.preventDefault();
-      setTransitioningSlug(slug);
-      transitionTimeoutRef.current = setTimeout(() => {
-        router.push(`/posts/${slug}`);
-        transitionTimeoutRef.current = null;
-      }, TRANSITION_DURATION_MS);
-    },
-    [prefersReducedMotion, router, transitioningSlug]
-  );
-
-  const isInteractive = visible && !transitioningSlug;
+  const isInteractive = visible && !isTransitioning;
 
   return (
     <>
       <div
         aria-hidden
-        className={`page-transition-overlay ${transitioningSlug ? "page-transition-overlay-active" : ""}`}
+        className={`page-transition-overlay ${isTransitioning ? "page-transition-overlay-active" : ""}`}
       />
       <div
         aria-hidden={!visible}
@@ -99,7 +52,11 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
                 <Link
                   key={post.slug}
                   href={`/posts/${post.slug}`}
-                  onClick={(event) => handlePostClick(event, post.slug)}
+                  onClick={(event) =>
+                    handleRouteTransition(event, `/posts/${post.slug}`, {
+                      transitionKey: post.slug,
+                    })
+                  }
                   tabIndex={isInteractive ? undefined : -1}
                   className="group relative block focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                 >
