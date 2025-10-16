@@ -67,19 +67,22 @@ const markdownComponents: Components = {
   code: ({ inline, className, children, ...props }: any) => {
     if (inline) {
       return (
-        <code className="rounded bg-zinc-800/70 px-1.5 py-1 text-sm text-violet-200" {...props}>
+        <code
+          className={`rounded bg-zinc-800/70 px-1.5 py-1 text-sm text-violet-200 ${className ?? ""}`.trim()}
+          {...props}
+        >
           {children}
         </code>
       );
     }
 
     return (
-      <code className={`text-sm ${className ?? ""}`} {...props}>
+      <code className={`text-sm ${className ?? ""}`.trim()} {...props}>
         {children}
       </code>
     );
   },
-  pre: ({ children, ...props }) => {
+  pre: ({ children, className, ...props }) => {
     const child = React.Children.only(children) as React.ReactElement<{ className?: string }> | undefined;
     const languageMatch =
       child && typeof child.props.className === "string"
@@ -89,7 +92,7 @@ const markdownComponents: Components = {
 
     return (
       <pre
-        className="overflow-x-auto rounded-2xl bg-zinc-900/80 px-5 py-5"
+        className={`overflow-x-auto rounded-2xl bg-zinc-900/80 px-5 py-5 ${className ?? ""}`.trim()}
         data-language={language}
         {...props}
       >
