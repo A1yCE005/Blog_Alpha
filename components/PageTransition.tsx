@@ -14,6 +14,8 @@ type ContentPhase = "ready" | "fadingOut" | "preEnter" | "fadingIn";
 const OVERLAY_FADE_IN_MS = 500;
 const OVERLAY_HOLD_MS = 120;
 const OVERLAY_FADE_OUT_MS = 520;
+const OVERLAY_VISIBLE_MS =
+  OVERLAY_FADE_IN_MS + OVERLAY_HOLD_MS + OVERLAY_FADE_OUT_MS;
 
 export function PageTransition({ children }: PageTransitionProps) {
   const pathname = usePathname();
@@ -146,6 +148,8 @@ export function PageTransition({ children }: PageTransitionProps) {
 
   const overlayBaseClass =
     "pointer-events-none fixed inset-0 z-40 bg-gradient-to-b from-transparent via-transparent to-black/40 transition-opacity duration-500 ease-out";
+
+  const overlayOpacityClass = showOverlay ? "opacity-100" : "opacity-0";
 
   const overlayClass =
     overlayPhase === "idle"
