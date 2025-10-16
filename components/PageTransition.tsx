@@ -98,10 +98,10 @@ export function PageTransition({ children }: PageTransitionProps) {
   }, []);
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
+    <div className="relative min-h-screen overflow-x-hidden bg-black">
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 bg-gradient-to-b from-transparent via-transparent to-black/40"
+        className={`pointer-events-none fixed inset-0 -z-10 bg-gradient-to-b from-transparent via-transparent to-black/40 transition-opacity duration-500 ease-out ${overlayOpacityClass}`}
       />
 
       {!shouldReduceMotion && (
