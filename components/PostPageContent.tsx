@@ -9,9 +9,16 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 
 import type { PostContent } from "@/lib/posts";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+
+const markdownSanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), "mark", "sub"],
+};
 
 const markdownComponents: Components = {
   h1: ({ children }) => (
@@ -209,7 +216,12 @@ export function PostPageContent({ post }: PostPageContentProps) {
             <ReactMarkdown
               components={markdownComponents}
               remarkPlugins={[remarkGfm, remarkMath]}
-              rehypePlugins={[rehypeKatex, rehypeHighlight]}
+              rehypePlugins={[
+                rehypeRaw,
+                [rehypeSanitize, markdownSanitizeSchema],
+                rehypeKatex,
+                rehypeHighlight,
+              ]}
             >
               {post.content}
             </ReactMarkdown>
