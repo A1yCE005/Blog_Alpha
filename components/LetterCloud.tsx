@@ -143,18 +143,23 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       x: number; y: number; vx?: number; vy?: number;
       tx: number; ty: number; c: string;
       sx: number; sy: number; sa: number; // intro 起点
-      startAtMs: number;                  // intro 错峰启动
+      startAtMs: number;                  // intro / drop 错峰启动
       d?: number;                         // morph 错峰延迟（ms）
       hox?: number; hoy?: number; hrad?: number;
       alpha?: number;
+      dropPhase?: number;
+      dropTargetY?: number;
     };
     let particles: P[] = [];
     let bg: Array<{x:number;y:number;c:string;t:number}> = [];
 
-    let phase: "intro" | "morph" | "exit" = "intro";
+    let phase: "drop" | "intro" | "morph" | "exit" = "intro";
     let introElapsedMs = 0;
     let morphElapsedMs = 0;
     let exitElapsedMs = 0;
+    let dropElapsedMs = 0;
+    let hasRunInitialDrop = false;
+    let pendingRetarget: string | null = null;
 
     let lastTs = 0;
 
@@ -250,30 +255,61 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       const need = targets.length;
       const jitter = typeof introJitterPx === "number" ? introJitterPx : gap * 1.2;
       const introStagger = CONFIG.transitionJitterMs ?? 0;
+      const isFirstDrop = !hasRunInitialDrop;
 
       for (let i = 0; i < need; i++) {
         const t = targets[i];
         const angR = Math.random() * Math.PI * 2;
         const r0 = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
-        const sx = t.x + (Math.random() - 0.5) * jitter;
-        const sy = t.y + (Math.random() - 0.5) * jitter;
 
-        particles.push({
-          x: sx,
-          y: sy,
-          sx,
-          sy,
-          sa: 0,
-          tx: t.x,
-          ty: t.y,
-          startAtMs: Math.random() * introStagger,
-          d: Math.random() * TRANS_JIT,
-          c: glyphs[(Math.random() * glyphs.length) | 0],
-          hox: Math.cos(angR),
-          hoy: Math.sin(angR),
-          hrad: r0,
-          alpha: 0
-        });
+        if (isFirstDrop) {
+          const spawnX = w * 0.1 + Math.random() * w * 0.8 + (Math.random() - 0.5) * jitter * 0.6;
+          const spawnY = -Math.random() * h * 0.5 - Math.random() * 80;
+          const vx = (Math.random() - 0.5) * 0.8;
+          const dropDelay = Math.random() * 380;
+          const dropTargetY = h * (0.78 + Math.random() * 0.08);
+
+          particles.push({
+            x: spawnX,
+            y: spawnY,
+            vx,
+            vy: 0,
+            sx: spawnX,
+            sy: spawnY,
+            sa: 0,
+            tx: t.x,
+            ty: t.y,
+            startAtMs: dropDelay,
+            d: Math.random() * TRANS_JIT,
+            c: glyphs[(Math.random() * glyphs.length) | 0],
+            hox: Math.cos(angR),
+            hoy: Math.sin(angR),
+            hrad: r0,
+            alpha: 0,
+            dropPhase: 0,
+            dropTargetY
+          });
+        } else {
+          const sx = t.x + (Math.random() - 0.5) * jitter;
+          const sy = t.y + (Math.random() - 0.5) * jitter;
+
+          particles.push({
+            x: sx,
+            y: sy,
+            sx,
+            sy,
+            sa: 0,
+            tx: t.x,
+            ty: t.y,
+            startAtMs: Math.random() * introStagger,
+            d: Math.random() * TRANS_JIT,
+            c: glyphs[(Math.random() * glyphs.length) | 0],
+            hox: Math.cos(angR),
+            hoy: Math.sin(angR),
+            hrad: r0,
+            alpha: 0
+          });
+        }
       }
 
       // 背景字符
@@ -292,10 +328,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         }
       }
 
-      phase = "intro";
+      phase = isFirstDrop ? "drop" : "intro";
       introElapsedMs = 0;
       morphElapsedMs = 0;
       exitElapsedMs = 0;
+      dropElapsedMs = 0;
       lastTs = 0;
 
       readyRef.current = true;
@@ -305,6 +342,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     /** ★ 在位重定向：仅更新目标，不清场、不重建循环 */
     function retargetToWord(newWord: string) {
       if (phase === "exit") return;
+      if (!hasRunInitialDrop && phase === "drop") {
+        pendingRetarget = newWord;
+        return;
+      }
+      pendingRetarget = null;
       renderWordToTemp(newWord);
       const targets = sampleTargetsFromTemp(gap);
       const need = targets.length;
@@ -417,8 +459,10 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           exitElapsedMs += dt;
         } else if (phase === "intro") {
           introElapsedMs += dt;
-        } else {
+        } else if (phase === "morph") {
           morphElapsedMs += dt;
+        } else {
+          dropElapsedMs += dt;
         }
 
         // 平滑鼠标
@@ -428,11 +472,70 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
         const hasParticles = particles.length > 0;
         let introSettled = phase !== "intro" || !hasParticles;
+        let dropSettled = phase !== "drop" || !hasParticles;
         const introDur = Math.max(1, introDurationMs || 1200);
         const fadeDur = Math.max(1, typeof introFadeMs === "number" ? introFadeMs : introDur);
 
         for (const p of particles) {
-          if (phase === "intro") {
+          if (phase === "drop") {
+            const startDelay = p.startAtMs || 0;
+            if (dropElapsedMs < startDelay) {
+              dropSettled = false;
+              p.alpha = 0;
+              continue;
+            }
+
+            const hubX = w * (CONFIG.funnelXFrac ?? 0.5);
+            const hubY = h * (CONFIG.funnelYFrac ?? 0.5);
+            const floorY = typeof p.dropTargetY === "number" ? p.dropTargetY : h * 0.82;
+            const funnelR = CONFIG.funnelRadiusPx ?? 18;
+            let stage = p.dropPhase ?? 0;
+            if (stage < 1) {
+              stage = 1;
+              p.dropPhase = 1;
+            }
+
+            if (stage === 1) {
+              p.vy = (p.vy ?? 0) + gravity * 0.08 * fscale;
+              p.x += (p.vx ?? 0) * fscale;
+              p.y += (p.vy ?? 0) * fscale;
+              if (p.y >= floorY) {
+                p.y = floorY;
+                p.vy = -(4 + Math.random() * 1.8);
+                const aimX = hubX + (p.hox ?? 0) * funnelR;
+                p.vx = (aimX - p.x) * 0.015;
+                p.dropPhase = 2;
+                stage = 2;
+              }
+            }
+
+            if (stage === 2) {
+              p.vy = (p.vy ?? 0) + gravity * 0.05 * fscale;
+              p.x += (p.vx ?? 0) * fscale;
+              p.y += (p.vy ?? 0) * fscale;
+              const aimX = hubX + (p.hox ?? 0) * funnelR;
+              const steer = (aimX - p.x) * 0.003;
+              p.vx = (p.vx ?? 0) * 0.97 + steer;
+              if (p.y <= hubY + funnelR * 0.6 || dropElapsedMs - startDelay > 1800) {
+                p.dropPhase = 3;
+                stage = 3;
+              }
+            }
+
+            if (stage >= 3) {
+              p.vx = (p.vx ?? 0) * 0.9;
+              p.vy = (p.vy ?? 0) * 0.9;
+              p.x += (p.vx ?? 0) * fscale;
+              p.y += (p.vy ?? 0) * fscale;
+            }
+
+            const fadeLocal = clamp01((dropElapsedMs - startDelay) / fadeDur);
+            p.alpha = easeInOut(fadeLocal);
+
+            if ((p.dropPhase ?? 0) < 3) {
+              dropSettled = false;
+            }
+          } else if (phase === "intro") {
             const startDelay = p.startAtMs || 0;
             const local = (introElapsedMs - startDelay) / introDur;
             const clamped = clamp01(local);
@@ -508,7 +611,23 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           }
         }
 
-        if (phase === "intro" && introSettled) {
+        if (phase === "drop" && dropSettled) {
+          hasRunInitialDrop = true;
+          phase = "morph";
+          morphElapsedMs = 0;
+          for (const p of particles) {
+            p.sx = p.x;
+            p.sy = p.y;
+            p.sa = typeof p.alpha === "number" ? p.alpha : 1;
+            p.vx = 0;
+            p.vy = 0;
+          }
+          if (pendingRetarget) {
+            const queued = pendingRetarget;
+            pendingRetarget = null;
+            retargetToWord(queued);
+          }
+        } else if (phase === "intro" && introSettled) {
           phase = "morph";
           morphElapsedMs = 0;
         }
@@ -520,6 +639,15 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           } else {
             p.x = p.tx; p.y = p.ty;
             p.alpha = 1;
+          }
+        }
+        if (phase === "drop") {
+          hasRunInitialDrop = true;
+          phase = "morph";
+          if (pendingRetarget) {
+            const queued = pendingRetarget;
+            pendingRetarget = null;
+            retargetToWord(queued);
           }
         }
       }
