@@ -15,9 +15,111 @@ import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import type { PostContent } from "@/lib/posts";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
+const KATEX_MATHML_TAGS = [
+  "annotation",
+  "math",
+  "menclose",
+  "merror",
+  "mfrac",
+  "mglyph",
+  "mi",
+  "mn",
+  "mo",
+  "mover",
+  "mpadded",
+  "mphantom",
+  "mprescripts",
+  "mroot",
+  "mrow",
+  "ms",
+  "mscarries",
+  "mscarry",
+  "msgroup",
+  "msline",
+  "mstyle",
+  "mspace",
+  "msqrt",
+  "msub",
+  "msubsup",
+  "msup",
+  "mtable",
+  "mtd",
+  "mtext",
+  "mtr",
+  "munder",
+  "munderover",
+  "none",
+  "semantics",
+];
+
+const SAFE_TOKEN = /^[a-zA-Z0-9_-]+$/;
+const SAFE_STYLE = /^[-:;,%0-9a-zA-Z. ()]*$/;
+
 const markdownSanitizeSchema = {
   ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), "mark", "sub"],
+  tagNames: [
+    ...(defaultSchema.tagNames ?? []),
+    "mark",
+    "sub",
+    ...KATEX_MATHML_TAGS,
+  ],
+  attributes: {
+    ...defaultSchema.attributes,
+    annotation: [
+      ...(defaultSchema.attributes?.annotation ?? []),
+      "encoding",
+    ],
+    code: [
+      ...(defaultSchema.attributes?.code ?? []),
+      ["className", SAFE_TOKEN],
+    ],
+    math: [
+      ...(defaultSchema.attributes?.math ?? []),
+      "display",
+      "xmlns",
+    ],
+    menclose: [
+      ...(defaultSchema.attributes?.menclose ?? []),
+      "notation",
+    ],
+    mstyle: [
+      ...(defaultSchema.attributes?.mstyle ?? []),
+      "displaystyle",
+      "mathcolor",
+      "scriptlevel",
+    ],
+    mtable: [
+      ...(defaultSchema.attributes?.mtable ?? []),
+      "columnalign",
+      "columnspacing",
+      "rowspacing",
+    ],
+    mo: [
+      ...(defaultSchema.attributes?.mo ?? []),
+      "fence",
+      "lspace",
+      "rspace",
+      "stretchy",
+    ],
+    path: [
+      ...(defaultSchema.attributes?.path ?? []),
+      "d",
+    ],
+    span: [
+      ...(defaultSchema.attributes?.span ?? []),
+      ["ariaHidden", "true"],
+      ["className", SAFE_TOKEN],
+      ["style", SAFE_STYLE],
+    ],
+    svg: [
+      ...(defaultSchema.attributes?.svg ?? []),
+      "height",
+      "preserveAspectRatio",
+      "viewBox",
+      "width",
+      "xmlns",
+    ],
+  },
 };
 
 const markdownComponents: Components = {
@@ -218,9 +320,9 @@ export function PostPageContent({ post }: PostPageContentProps) {
               remarkPlugins={[remarkGfm, remarkMath]}
               rehypePlugins={[
                 rehypeRaw,
-                [rehypeSanitize, markdownSanitizeSchema],
                 rehypeKatex,
                 rehypeHighlight,
+                [rehypeSanitize, markdownSanitizeSchema],
               ]}
             >
               {post.content}
