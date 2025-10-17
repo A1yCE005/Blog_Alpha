@@ -1,4 +1,5 @@
 import "./globals.css";
+import "highlight.js/styles/github-dark.css";
 import "katex/dist/katex.min.css";
 import type { Metadata } from "next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
