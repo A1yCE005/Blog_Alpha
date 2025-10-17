@@ -164,7 +164,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     let bg: Array<{x:number;y:number;c:string;t:number}> = [];
 
     let phase: "drop" | "morph" | "exit" = "drop";
-    let wasMorph = phase === "morph";
+    let wasMorph = false;
     let morphElapsedMs = 0;
     let exitElapsedMs = 0;
 
