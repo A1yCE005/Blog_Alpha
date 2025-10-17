@@ -166,24 +166,55 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       x: number; y: number; vx: number; vy: number;
       tx: number; ty: number; c: string;
       d?: number;                 // 错峰延迟（ms）
-      hox?: number; hoy?: number; // 汇聚方向单位向量
-      hrad?: number;              // 汇聚初始半径
+      windMag?: number;           // 风力强度权重
+      windPhase?: number;         // 每粒子扰动相位
     };
     let particles: P[] = [];
     let bg: Array<{x:number;y:number;c:string;t:number}> = [];
 
-    let phase: "drop" | "morph" | "exit" = skipDropRef.current ? "morph" : "drop";
-    let wasMorph = phase === "morph";
-    let morphElapsedMs = 0;
+    let phase: "drop" | "gust" | "rewind" | "exit" = skipDropRef.current ? "rewind" : "drop";
+    let dropElapsedMs = 0;
+    let gustElapsedMs = 0;
+    let rewindElapsedMs = 0;
     let exitElapsedMs = 0;
 
     let elapsedMs = 0, lastTs = 0;
+
+    let gustDirX = 0;
+    let gustDirY = -1;
+    let gustPerpX = 1;
+    let gustPerpY = 0;
 
     const mouse = { x: -9999, y: -9999 };
     const smouse = { x: -9999, y: -9999 };
 
     const TRANS_DUR = CONFIG.transitionMs ?? 1200;
     const TRANS_JIT = CONFIG.transitionJitterMs ?? 0;
+    const gustDurationMs = Math.max(200, TRANS_DUR * clamp01(CONFIG.funnelSplit ?? 0.45));
+    const rewindDurationMs = Math.max(200, TRANS_DUR - gustDurationMs);
+
+    function setGustDirection(angle?: number) {
+      const theta = angle ?? Math.random() * Math.PI * 2;
+      gustDirX = Math.cos(theta);
+      gustDirY = Math.sin(theta);
+      gustPerpX = -gustDirY;
+      gustPerpY = gustDirX;
+    }
+
+    function startGust(angle?: number) {
+      if (phase === "exit") return;
+      setGustDirection(angle);
+      phase = "gust";
+      dropElapsedMs = 0;
+      gustElapsedMs = 0;
+      rewindElapsedMs = 0;
+      for (let i = 0; i < particles.length; i++) {
+        particles[i].vx *= 0.35;
+        particles[i].vy *= 0.35;
+      }
+    }
+
+    setGustDirection();
 
     function ensureTempSize() {
       const rect = canvas.getBoundingClientRect();
@@ -272,8 +303,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
       const pushOne = (t: {x:number;y:number}, bornNearTarget: boolean) => {
         const jitter = gap * 1.2;
-        const angR = Math.random() * Math.PI * 2;
-        const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
+        const windMag = 0.6 + Math.random() * 0.7;
+        const windPhase = Math.random() * Math.PI * 2;
 
         if (bornNearTarget) {
           particles.push({
@@ -283,7 +314,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             tx: t.x, ty: t.y,
             d: Math.random() * TRANS_JIT,
             c: glyphs[(Math.random() * glyphs.length) | 0],
-            hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0
+            windMag,
+            windPhase
           });
         } else {
           const minDim = Math.min(w, h);
@@ -303,7 +335,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             tx: t.x, ty: t.y,
             d: Math.random() * TRANS_JIT,
             c: glyphs[(Math.random() * glyphs.length) | 0],
-            hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0
+            windMag,
+            windPhase
           });
         }
       };
@@ -311,6 +344,13 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       for (let i = 0; i < need; i++) {
         const t = targets[i];
         pushOne(t, !!skipDropRef.current);
+      }
+
+      if (phase !== "exit") {
+        phase = skipDropRef.current ? "rewind" : "drop";
+        dropElapsedMs = 0;
+        gustElapsedMs = 0;
+        rewindElapsedMs = 0;
       }
 
       // 背景字符
@@ -344,15 +384,16 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         const jitter = gap * 1.2;
         for (let i = particles.length; i < need; i++) {
           const t = targets[i];
-          const angR = Math.random() * Math.PI * 2;
-          const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
+          const windMag = 0.6 + Math.random() * 0.7;
+          const windPhase = Math.random() * Math.PI * 2;
           particles.push({
             x: t.x + (Math.random() - 0.5) * jitter,
             y: t.y + (Math.random() - 0.5) * jitter,
             vx: 0, vy: 0, tx: t.x, ty: t.y,
             d: Math.random() * TRANS_JIT,
             c: glyphs[(Math.random() * glyphs.length) | 0],
-            hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0
+            windMag,
+            windPhase
           });
         }
       } else if (particles.length > need) {
@@ -364,18 +405,24 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         particles[i].tx = targets[i].x;
         particles[i].ty = targets[i].y;
         particles[i].d  = Math.random() * TRANS_JIT;
-
-        const angR = Math.random() * Math.PI * 2;
-        const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
-        particles[i].hox = Math.cos(angR);
-        particles[i].hoy = Math.sin(angR);
-        particles[i].hrad = r0;
+        particles[i].windMag = 0.6 + Math.random() * 0.7;
+        particles[i].windPhase = Math.random() * Math.PI * 2;
       }
 
-      // 进入 morph 并重置计时
-      phase = "morph";
-      wasMorph = false;
-      morphElapsedMs = 0;
+      // 进入风阶段并重置计时
+      if (prefersReduced) {
+        for (let i = 0; i < particles.length; i++) {
+          particles[i].x = particles[i].tx;
+          particles[i].y = particles[i].ty;
+          particles[i].vx = 0;
+          particles[i].vy = 0;
+        }
+        phase = "rewind";
+        gustElapsedMs = 0;
+        rewindElapsedMs = 0;
+      } else {
+        startGust();
+      }
     }
 
     // 暴露给外层
@@ -411,6 +458,10 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       const fscale = Math.min(2, Math.max(0.5, dt / 16.6667));
       elapsedMs += dt;
 
+      if (phase === "exit") {
+        exitElapsedMs += dt;
+      }
+
       const w = canvas.width / DPR, h = canvas.height / DPR;
 
       // 背景
@@ -427,26 +478,31 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       (ctx as any).globalAlpha = 1;
 
       if (!prefersReduced) {
-        if (phase !== "exit") {
-          // 阶段切换
-          const morphT = dropDurationMs + morphDelayMs;
-          const newPhase: "drop" | "morph" = skipDropRef.current
-            ? "morph"
-            : elapsedMs >= morphT
-            ? "morph"
-            : "drop";
-          if (newPhase === "morph" && !wasMorph) morphElapsedMs = 0;
-          if (newPhase !== "morph")             morphElapsedMs = 0;
-          wasMorph = newPhase === "morph";
-          phase = newPhase;
-        } else {
-          exitElapsedMs += dt;
+        if (phase === "drop") {
+          dropElapsedMs += dt;
+          if (skipDropRef.current || dropElapsedMs >= dropDurationMs + morphDelayMs) {
+            startGust();
+          }
+        } else if (phase === "gust") {
+          gustElapsedMs += dt;
+          if (gustElapsedMs >= gustDurationMs) {
+            phase = "rewind";
+            rewindElapsedMs = 0;
+          }
+        } else if (phase === "rewind") {
+          rewindElapsedMs += dt;
         }
 
         // 平滑鼠标
         const a = Math.min(0.9, CONFIG.mouseSmooth * fscale);
         smouse.x += (mouse.x - smouse.x) * a;
         smouse.y += (mouse.y - smouse.y) * a;
+
+        const centerX = w * 0.5;
+        const centerY = h * 0.5;
+        const gustTGlobal = gustDurationMs > 0 ? clamp01(gustElapsedMs / gustDurationMs) : 1;
+        const gustEase = 1 - Math.pow(gustTGlobal, 1.5);
+        const rewindDur = rewindDurationMs > 0 ? rewindDurationMs : 1;
 
         for (const p of particles) {
           if (phase === "drop") {
@@ -465,11 +521,30 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
               if (p.x < wall) { p.x = wall; p.vx = -p.vx * 0.7; }
               else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
             } else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
-          } else if (phase === "morph") {
-            // ——两阶段形态过渡——
-            morphElapsedMs += dt;
+          } else if (phase === "gust") {
+            // ——风抛阶段：风向 + 扰动——
+            const windMag = p.windMag ?? 1;
+            const swirlPhase = (p.windPhase ?? 0) + gustElapsedMs * 0.004;
+            const swirl = Math.sin(swirlPhase);
+            const lift = -0.02 * fscale;
+            const gustStrength = (0.18 + 0.14 * gustEase) * windMag;
+            const radialX = (p.x - centerX) * 0.003 * gustEase;
+            const radialY = (p.y - centerY) * 0.003 * gustEase;
 
-            // 轻微“挤开”
+            const ax = gustDirX * gustStrength + gustPerpX * swirl * gustStrength * 0.45 + radialX;
+            const ay = gustDirY * gustStrength + gustPerpY * swirl * gustStrength * 0.45 + radialY + lift;
+
+            p.vx += ax * fscale;
+            p.vy += ay * fscale;
+
+            const drag = Math.max(0.62, 1 - 0.12 * fscale);
+            p.vx *= drag;
+            p.vy *= drag;
+            p.x += p.vx * fscale;
+            p.y += p.vy * fscale;
+            p.windPhase = (p.windPhase ?? 0) + 0.06 * fscale;
+          } else if (phase === "rewind") {
+            // ——回拢阶段：受风后回卷成字——
             let pushX = 0, pushY = 0;
             const dxm = p.x - smouse.x, dym = p.y - smouse.y;
             const r = CONFIG.mouseRepelRadius, d = Math.hypot(dxm, dym);
@@ -484,37 +559,25 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
               pushX = ux * off; pushY = uy * off;
             }
 
-            // ——阶段性目标：funnel → out——
-            const hubX = w * (CONFIG.funnelXFrac ?? 0.5);
-            const hubY = h * (CONFIG.funnelYFrac ?? 0.5);
-            const split = clamp01(CONFIG.funnelSplit ?? 0.45);
-            const tLocal = clamp01((morphElapsedMs - (p.d || 0)) / (CONFIG.transitionMs || 1200));
+            const delay = p.d ?? 0;
+            const localT = clamp01(Math.max(0, rewindElapsedMs - delay) / rewindDur);
+            const stiffness = 0.05 + (typeof morphK === "number" ? morphK : 0.14) * easeInOut(localT) + 0.05 * localT;
+            const damping = Math.max(0.7, 1 - (0.08 + 0.08 * localT) * fscale);
 
-            let targetX: number, targetY: number;
-            if (tLocal < split) {
-              const u = easeInOut(tLocal / Math.max(1e-3, split));
-              const currR = (p.hrad ?? (CONFIG.funnelRadiusPx ?? 18)) * (1 - u);
-              const j = (CONFIG.funnelJitterPx ?? 6) * 0.05;
-              targetX = hubX + (p.hox ?? 1) * currR + (Math.random() - 0.5) * j;
-              targetY = hubY + (p.hoy ?? 0) * currR + (Math.random() - 0.5) * j;
-            } else {
-              const v = easeInOut((tLocal - split) / Math.max(1e-3, 1 - split));
-              targetX = hubX + (p.tx - hubX) * v;
-              targetY = hubY + (p.ty - hubY) * v;
+            const targetX = p.tx + pushX;
+            const targetY = p.ty + pushY;
+            const ax = (targetX - p.x) * stiffness;
+            const ay = (targetY - p.y) * stiffness;
+
+            p.vx = (p.vx + ax * fscale) * damping;
+            p.vy = (p.vy + ay * fscale) * damping;
+            p.x += p.vx * fscale;
+            p.y += p.vy * fscale;
+
+            if (localT >= 1 && Math.abs(p.vx) + Math.abs(p.vy) < 0.05) {
+              p.x = targetX; p.y = targetY;
+              p.vx = 0; p.vy = 0;
             }
-
-            targetX += pushX; targetY += pushY;
-
-            // 动态跟随强度（温和）
-            const baseK = 0.04;
-            const gainK = (typeof morphK === "number" ? morphK : 0.14);
-            const kNow = baseK + easeInOut(tLocal) * gainK;
-
-            const dx = targetX - p.x, dy = targetY - p.y;
-            const tt = 1 - Math.pow(1 - kNow, Math.max(1, dt / 16.67));
-            p.x += dx * tt; p.y += dy * tt;
-
-            if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
           } else {
             // ——退出阶段：向四周喷散 + 淡出——
             p.vy += gravity * 0.04 * fscale;
@@ -531,6 +594,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             p.y += p.vy ?? 0;
           } else {
             p.x = p.tx; p.y = p.ty;
+            p.vx = 0; p.vy = 0;
           }
         }
       }
@@ -549,9 +613,18 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         if (phase === "exit") {
           const fade = 1 - clamp01(exitElapsedMs / 1400);
           alpha = Math.max(0, fade);
-        } else if (wasMorph) {
-          const tLocal = clamp01((morphElapsedMs - (p.d || 0)) / (CONFIG.transitionMs || 1200));
-          alpha = 0.85 + 0.15 * easeInOut(tLocal);
+        } else if (phase === "drop") {
+          alpha = 0.85;
+        } else if (phase === "gust") {
+          const gustT = gustDurationMs > 0 ? clamp01(gustElapsedMs / gustDurationMs) : 1;
+          alpha = 0.75 + 0.25 * (1 - Math.pow(1 - gustT, 2));
+        } else if (phase === "rewind") {
+          const delay = p.d ?? 0;
+          const localT = clamp01(Math.max(0, rewindElapsedMs - delay) / Math.max(1, rewindDurationMs));
+          alpha = 0.82 + 0.18 * easeInOut(localT);
+        }
+        if (prefersReduced && phase !== "exit") {
+          alpha = 1;
         }
         (ctx as any).globalAlpha = alpha;
         if (outline) { ctx.lineWidth = 1; (ctx as any).strokeStyle = "rgba(0,0,0,0.6)"; ctx.strokeText(p.c, p.x, p.y); }
