@@ -23,13 +23,10 @@ const CONFIG = {
   mouseSmooth: 0.18,
   dockDeadzone: 18,
 
-  // 颜色与背景
+  // 颜色与字符
   colorFg: "#e5e7eb",
   colorAccent: "#a78bfa",
-  colorBg: "#0b0b10",
   bgGlyphs: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+-=<>?@",
-  bgDensity: 0.22,
-  bgSpeed: 0.25,
 
   // 首轮：抛撒→落地→汇聚
   dropDurationMs: 1800,
@@ -160,7 +157,6 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       hrad?: number;              // 汇聚初始半径
     };
     let particles: P[] = [];
-    let bg: Array<{x:number;y:number;c:string;t:number}> = [];
 
     let phase: "drop" | "morph" | "exit" = "drop";
     let wasMorph = false;
@@ -291,21 +287,6 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         pushOne(t);
       }
 
-      // 背景字符
-      bg = [];
-      const cell = Math.max(10, Math.floor(gap * 1.5));
-      for (let yy = 0; yy < h; yy += cell) {
-        for (let xx = 0; xx < w; xx += cell) {
-          if (Math.random() < CONFIG.bgDensity) {
-            bg.push({
-              x: xx, y: yy,
-              c: glyphs[(Math.random() * glyphs.length) | 0],
-              t: Math.random() * 1000
-            });
-          }
-        }
-      }
-
       readyRef.current = true;
       setReady(true);
     }
@@ -391,17 +372,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
       const w = canvas.width / DPR, h = canvas.height / DPR;
 
-      // 背景
-      ctx.fillStyle = CONFIG.colorBg;
-      ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = "rgba(255,255,255,0.08)";
-      ctx.font = `600 12px ${CONFIG.fontFamily}`;
-      for (const g of bg) {
-        g.t += CONFIG.bgSpeed * fscale;
-        const flicker = 0.5 + 0.5 * Math.sin(g.t * 0.05);
-        (ctx as any).globalAlpha = 0.08 + 0.12 * flicker;
-        ctx.fillText(g.c, g.x, g.y);
-      }
+      // 清除上一帧，保留透明背景
+      ctx.clearRect(0, 0, w, h);
       (ctx as any).globalAlpha = 1;
 
       if (!prefersReduced) {
