@@ -14,7 +14,7 @@ const CONFIG = {
 
   // 版面与取样
   wordScale: 0.60,       // 词形占 min(width,height) 的比例（用于取样目标点）
-  sampleGap: 4,          // 取样间距（越小点越多）
+  sampleGap: 5.2,          // 取样间距（越小点越多）
   letterSpacing: 0.06,   // 字间距（按字号比例）
 
   // 交互（类 dock）
@@ -36,20 +36,19 @@ const CONFIG = {
   morphDelayMs: 1600,
   gravity: 2.8,
   bounce: -0.28,
-  groundFriction: 0.82,
+  groundFriction: 0.7,
   launchXFrac: -0.08,
   launchYFrac: -0.22,
-  launchRadiusFrac: 0.10,
-  launchSpeed: 6.0,
-  launchSpeedJitter: 0.35,
-  launchAngleDeg: 70,
+  launchRadiusFrac: 0.2,
+  launchSpeed: 12.0,
+  launchSpeedJitter: 0.40,
+  launchAngleDeg: 60,
   launchSpreadDeg: 24,
 
   // 两形态之间的总体过渡
   transitionMs: 1200,
   transitionJitterMs: 180,
 
-  // ★ 两阶段过渡：先汇聚成一束 → 再喷出成型
   funnelSplit: 0.45,       // 第一阶段所占比例（0..1）
   funnelXFrac: 0.50,       // 汇聚点 X（相对宽度 0..1）
   funnelYFrac: 0.52,       // 汇聚点 Y（相对高度 0..1）
@@ -609,46 +608,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   // 进入博客过渡控制
   const enterTimerRef = React.useRef<number | undefined>(undefined);
 
-  // 接收 /tuner 广播
-  React.useEffect(() => {
-    let ch: BroadcastChannel | null = null;
-    try {
-      ch = new BroadcastChannel("lettercloud-tune");
-      const on = (e: MessageEvent) => handleMsg(e.data);
-      ch.addEventListener("message", on);
-    } catch {}
-    const onStorage = (ev: StorageEvent) => {
-      if (ev.key !== "lettercloud-tune" || !ev.newValue) return;
-      try { handleMsg(JSON.parse(ev.newValue)); } catch {}
-    };
-    window.addEventListener("storage", onStorage);
-    return () => { ch?.close(); window.removeEventListener("storage", onStorage); };
-  }, []);
 
-  function handleMsg(m: any) {
-    if (!m) return;
-    if (typeof m.word === "string") setWord(m.word);
-    if (typeof m.sampleGap === "number") setGap(m.sampleGap);
-    if (typeof m.morphK === "number") setMorphK(m.morphK);
-    if (typeof m.dockMaxOffset === "number") setDockMaxOffset(m.dockMaxOffset);
-    if (typeof m.glyphSizePx === "number") setGlyphSizePx(m.glyphSizePx);
-
-    const numKeys = [
-      "gravity","bounce","groundFriction",
-      "dropDurationMs","morphDelayMs",
-      "launchXFrac","launchYFrac","launchRadiusFrac",
-      "launchSpeed","launchSpeedJitter",
-      "launchAngleDeg","launchSpreadDeg",
-      "mouseRepelRadius","mouseRepelForce","mouseSmooth","dockDeadzone",
-      "bgDensity","bgSpeed","wordScale","letterSpacing",
-      "transitionMs","transitionJitterMs",
-      "funnelSplit","funnelXFrac","funnelYFrac","funnelRadiusPx","funnelJitterPx"
-    ] as const;
-    for (const k of numKeys) if (typeof m[k] === "number") (CONFIG as any)[k] = m[k];
-
-    const strKeys = ["colorFg","colorBg","colorAccent"] as const;
-    for (const k of strKeys) if (typeof m[k] === "string") (CONFIG as any)[k] = m[k];
-  }
 
   React.useEffect(() => {
     if (!hasEnteredBlog) return;
