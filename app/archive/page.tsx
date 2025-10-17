@@ -9,7 +9,7 @@ import { getAllPosts } from "@/lib/posts";
 const POSTS_PER_PAGE = 10;
 
 export const metadata: Metadata = {
-  title: "Archive · Letter Cloud Blog",
+  title: "Archive · Lighthouse",
   description:
     "Browse every post in the Letter Cloud blog archive. Discover essays, signals, and experiments from the studio's history.",
 };

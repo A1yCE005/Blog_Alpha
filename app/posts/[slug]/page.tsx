@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
   }
   return {
-    title: `${post.title} · Letter Cloud Blog`,
+    title: `${post.title} · Lighthouse`,
     description: post.excerpt,
   };
 }
