@@ -45,11 +45,6 @@ const CONFIG = {
   launchAngleDeg: 70,
   launchSpreadDeg: 24,
 
-  // 待机轮播
-  idleTargets: ["Lighthosue", "Halo"],
-  idleStartDelayMs: 1400,
-  idleIntervalMs: 6000,
-
   // 两形态之间的总体过渡
   transitionMs: 1200,
   transitionJitterMs: 180,
@@ -91,7 +86,6 @@ type WPProps = {
   morphK?: number;
   dockMaxOffset?: number;
   glyphSizePx?: number;            // 粒子字大小（px）
-  skipDrop?: boolean;              // 轮播时 true：跳过落地，直接做两阶段过渡
 };
 
 export type WordParticlesHandle = {
@@ -123,8 +117,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     outline = false,
     morphK,
     dockMaxOffset,
-    glyphSizePx,
-    skipDrop
+    glyphSizePx
   } = props;
 
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
@@ -133,8 +126,6 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   const [ready, setReady] = React.useState(false);
   const prefersReduced = usePrefersReducedMotion();
   const glyphs = React.useMemo(() => CONFIG.bgGlyphs.split(""), []);
-  const skipDropRef = React.useRef<boolean>(!!skipDrop);
-  skipDropRef.current = !!skipDrop;
 
   // 用于“在位重定向”与退出动画触发
   const retargetRef = React.useRef<null | ((newWord: string) => void)>(null);
@@ -172,7 +163,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     let particles: P[] = [];
     let bg: Array<{x:number;y:number;c:string;t:number}> = [];
 
-    let phase: "drop" | "morph" | "exit" = skipDropRef.current ? "morph" : "drop";
+    let phase: "drop" | "morph" | "exit" = "drop";
     let wasMorph = phase === "morph";
     let morphElapsedMs = 0;
     let exitElapsedMs = 0;
@@ -270,47 +261,35 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       particles.length = 0;
       const need = targets.length;
 
-      const pushOne = (t: {x:number;y:number}, bornNearTarget: boolean) => {
+      const pushOne = (t: {x:number;y:number}) => {
         const jitter = gap * 1.2;
         const angR = Math.random() * Math.PI * 2;
         const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
 
-        if (bornNearTarget) {
-          particles.push({
-            x: t.x + (Math.random() - 0.5) * jitter,
-            y: t.y + (Math.random() - 0.5) * jitter,
-            vx: 0, vy: 0,
-            tx: t.x, ty: t.y,
-            d: Math.random() * TRANS_JIT,
-            c: glyphs[(Math.random() * glyphs.length) | 0],
-            hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0
-          });
-        } else {
-          const minDim = Math.min(w, h);
-          const r = launchRadiusFrac * minDim;
-          const ang =
-            (launchAngleDeg + (Math.random() - 0.5) * launchSpreadDeg) *
-            (Math.PI / 180);
-          const spd =
-            launchSpeed * (1 + (Math.random() - 0.5) * launchSpeedJitter);
-          const originX = w * launchXFrac + (Math.random() - 0.5) * r * 2;
-          const originY = h * launchYFrac + (Math.random() - 0.5) * r * 2;
+        const minDim = Math.min(w, h);
+        const r = launchRadiusFrac * minDim;
+        const ang =
+          (launchAngleDeg + (Math.random() - 0.5) * launchSpreadDeg) *
+          (Math.PI / 180);
+        const spd =
+          launchSpeed * (1 + (Math.random() - 0.5) * launchSpeedJitter);
+        const originX = w * launchXFrac + (Math.random() - 0.5) * r * 2;
+        const originY = h * launchYFrac + (Math.random() - 0.5) * r * 2;
 
-          particles.push({
-            x: originX, y: originY,
-            vx: Math.cos(ang) * spd,
-            vy: Math.sin(ang) * spd,
-            tx: t.x, ty: t.y,
-            d: Math.random() * TRANS_JIT,
-            c: glyphs[(Math.random() * glyphs.length) | 0],
-            hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0
-          });
-        }
+        particles.push({
+          x: originX, y: originY,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd,
+          tx: t.x, ty: t.y,
+          d: Math.random() * TRANS_JIT,
+          c: glyphs[(Math.random() * glyphs.length) | 0],
+          hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0
+        });
       };
 
       for (let i = 0; i < need; i++) {
         const t = targets[i];
-        pushOne(t, !!skipDropRef.current);
+        pushOne(t);
       }
 
       // 背景字符
@@ -430,11 +409,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         if (phase !== "exit") {
           // 阶段切换
           const morphT = dropDurationMs + morphDelayMs;
-          const newPhase: "drop" | "morph" = skipDropRef.current
-            ? "morph"
-            : elapsedMs >= morphT
-            ? "morph"
-            : "drop";
+          const newPhase: "drop" | "morph" =
+            elapsedMs >= morphT ? "morph" : "drop";
           if (newPhase === "morph" && !wasMorph) morphElapsedMs = 0;
           if (newPhase !== "morph")             morphElapsedMs = 0;
           wasMorph = newPhase === "morph";
@@ -609,7 +585,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   );
 });
 
-/** 全屏首页：首轮抛撒→汇聚；随后进入待机轮播（跳过落地，仅两阶段过渡） */
+/** 全屏首页：首轮抛撒→汇聚 */
 type FullscreenHomeProps = {
   posts: PostSummary[];
   initialBlogView?: boolean;
@@ -630,11 +606,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
 
   const router = useRouter();
 
-  // 轮播控制
-  const [skipDrop, setSkipDrop] = React.useState(false);
-  const idleIdxRef = React.useRef(0);
-  const idleTimerRef = React.useRef<number | undefined>(undefined);
-  const idleStartRef = React.useRef<number | undefined>(undefined);
+  // 进入博客过渡控制
   const enterTimerRef = React.useRef<number | undefined>(undefined);
 
   // 接收 /tuner 广播
@@ -674,45 +646,12 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     ] as const;
     for (const k of numKeys) if (typeof m[k] === "number") (CONFIG as any)[k] = m[k];
 
-    if (Array.isArray(m.idleTargets)) (CONFIG as any).idleTargets = m.idleTargets;
-    if (typeof m.idleStartDelayMs === "number") (CONFIG as any).idleStartDelayMs = m.idleStartDelayMs;
-    if (typeof m.idleIntervalMs === "number")   (CONFIG as any).idleIntervalMs = m.idleIntervalMs;
-
     const strKeys = ["colorFg","colorBg","colorAccent"] as const;
     for (const k of strKeys) if (typeof m[k] === "string") (CONFIG as any)[k] = m[k];
   }
 
-  // 首轮结束后进入待机轮播（只做两阶段过渡）
-  React.useEffect(() => {
-    if (idleStartRef.current) clearTimeout(idleStartRef.current);
-    if (idleTimerRef.current) clearInterval(idleTimerRef.current);
-
-    setSkipDrop(false); // 首轮保留抛撒
-    const initialDelay =
-      (CONFIG.dropDurationMs ?? 1200) +
-      (CONFIG.morphDelayMs ?? 900) +
-      (CONFIG.idleStartDelayMs ?? 1200);
-
-    idleStartRef.current = window.setTimeout(() => {
-      setSkipDrop(true);
-      const list = Array.isArray(CONFIG.idleTargets) ? CONFIG.idleTargets : [];
-      if (!list.length) return;
-      idleTimerRef.current = window.setInterval(() => {
-        idleIdxRef.current = (idleIdxRef.current + 1) % list.length;
-        setWord(list[idleIdxRef.current]);
-      }, CONFIG.idleIntervalMs ?? 6000) as unknown as number;
-    }, initialDelay) as unknown as number;
-
-    return () => {
-      if (idleStartRef.current) clearTimeout(idleStartRef.current);
-      if (idleTimerRef.current) clearInterval(idleTimerRef.current);
-    };
-  }, []);
-
   React.useEffect(() => {
     if (!hasEnteredBlog) return;
-    if (idleStartRef.current) clearTimeout(idleStartRef.current);
-    if (idleTimerRef.current) clearInterval(idleTimerRef.current);
     setWord(CONFIG.word);
 
     if (initialBlogRef.current) {
@@ -773,7 +712,6 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
               launchSpreadDeg={CONFIG.launchSpreadDeg}
               morphK={morphK}
               dockMaxOffset={dockMaxOffset}
-              skipDrop={skipDrop}
             />
           </div>
           <h1 className="sr-only" aria-live="polite">{word}</h1>
