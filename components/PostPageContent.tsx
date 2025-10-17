@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -224,6 +225,19 @@ type PostPageContentProps = {
 
 export function PostPageContent({ post }: PostPageContentProps) {
   const { isTransitioning, handleLinkClick } = usePageTransition();
+  const searchParams = useSearchParams();
+  const from = searchParams.get("from");
+  const archivePageParam = searchParams.get("archivePage");
+  const archivePage =
+    archivePageParam && /^\d+$/.test(archivePageParam)
+      ? Number.parseInt(archivePageParam, 10)
+      : null;
+  const backHref =
+    from === "archive"
+      ? archivePage && archivePage > 1
+        ? `/archive?page=${archivePage}`
+        : "/archive"
+      : "/?view=blog";
 
   return (
     <>
@@ -239,8 +253,8 @@ export function PostPageContent({ post }: PostPageContentProps) {
         <div className="mx-auto w-full max-w-3xl px-6 py-20 sm:px-10">
           <div className="mb-10">
             <Link
-              href="/?view=blog"
-              onClick={(event) => handleLinkClick(event, "/?view=blog")}
+              href={backHref}
+              onClick={(event) => handleLinkClick(event, backHref)}
               className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-500 transition-colors duration-200 hover:text-violet-200"
             >
               <span aria-hidden>←</span> Back to the cloud

@@ -109,15 +109,19 @@ export function ArchivePageContent({
 
           {posts.length > 0 ? (
             <div className="flex flex-col gap-6">
-              {posts.map((post) => (
-                <PostCard
-                  key={post.slug}
-                  post={post}
-                  href={`/posts/${post.slug}`}
-                  onClick={(event) => handleLinkClick(event, `/posts/${post.slug}`)}
-                  tabIndex={isInteractive ? undefined : -1}
-                />
-              ))}
+              {posts.map((post) => {
+                const postHref = `/posts/${post.slug}?from=archive&archivePage=${page}`;
+
+                return (
+                  <PostCard
+                    key={post.slug}
+                    post={post}
+                    href={postHref}
+                    onClick={(event) => handleLinkClick(event, postHref)}
+                    tabIndex={isInteractive ? undefined : -1}
+                  />
+                );
+              })}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 bg-zinc-950/50 p-12 text-center text-sm text-zinc-400">
