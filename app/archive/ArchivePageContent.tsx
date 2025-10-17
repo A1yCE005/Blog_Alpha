@@ -78,6 +78,16 @@ export function ArchivePageContent({
   const { isTransitioning, handleLinkClick } = usePageTransition();
   const isInteractive = !isTransitioning;
 
+  const archiveLinkSearch = new URLSearchParams({ from: "archive" });
+  if (page > 1) {
+    archiveLinkSearch.set("archivePage", String(page));
+  }
+
+  const buildPostHref = (slug: string) => {
+    const search = archiveLinkSearch.toString();
+    return search ? `/posts/${slug}?${search}` : `/posts/${slug}`;
+  };
+
   return (
     <>
       <div
@@ -89,7 +99,11 @@ export function ArchivePageContent({
           isTransitioning ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
       >
-        <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-10 px-6 py-16 sm:px-10">
+        <div
+          className={`mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-10 px-6 py-16 transition-transform duration-300 ease-out sm:px-10 ${
+            isInteractive ? "translate-y-0" : "translate-y-8"
+          }`}
+        >
           <Link
             href="/?view=blog"
             onClick={(event) => handleLinkClick(event, "/?view=blog")}
@@ -110,8 +124,7 @@ export function ArchivePageContent({
           {posts.length > 0 ? (
             <div className="flex flex-col gap-6">
               {posts.map((post) => {
-                const postHref = `/posts/${post.slug}?from=archive&archivePage=${page}`;
-
+                const postHref = buildPostHref(post.slug);
                 return (
                   <PostCard
                     key={post.slug}

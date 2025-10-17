@@ -2,7 +2,6 @@
 
 import React from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -221,23 +220,12 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 
 type PostPageContentProps = {
   post: PostContent;
+  backHref?: string;
 };
 
-export function PostPageContent({ post }: PostPageContentProps) {
+export function PostPageContent({ post, backHref = "/?view=blog" }: PostPageContentProps) {
   const { isTransitioning, handleLinkClick } = usePageTransition();
-  const searchParams = useSearchParams();
-  const from = searchParams.get("from");
-  const archivePageParam = searchParams.get("archivePage");
-  const archivePage =
-    archivePageParam && /^\d+$/.test(archivePageParam)
-      ? Number.parseInt(archivePageParam, 10)
-      : null;
-  const backHref =
-    from === "archive"
-      ? archivePage && archivePage > 1
-        ? `/archive?page=${archivePage}`
-        : "/archive"
-      : "/?view=blog";
+  const isInteractive = !isTransitioning;
 
   return (
     <>
@@ -256,6 +244,7 @@ export function PostPageContent({ post }: PostPageContentProps) {
               href={backHref}
               onClick={(event) => handleLinkClick(event, backHref)}
               className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-500 transition-colors duration-200 hover:text-violet-200"
+              tabIndex={isInteractive ? undefined : -1}
             >
               <span aria-hidden>←</span> Back to the cloud
             </Link>

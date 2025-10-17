@@ -6,6 +6,7 @@ import { PostPageContent } from "@/components/PostPageContent";
 
 type PageProps = {
   params: { slug: string };
+  searchParams?: Record<string, string | string[] | undefined>;
 };
 
 export async function generateStaticParams() {
@@ -27,7 +28,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function PostPage({ params }: PageProps) {
+export default async function PostPage({ params, searchParams }: PageProps) {
   const { slug } = params;
   const post = await getPostBySlug(slug);
 
@@ -35,5 +36,25 @@ export default async function PostPage({ params }: PageProps) {
     notFound();
   }
 
-  return <PostPageContent post={post} />;
+  const fromParam =
+    typeof searchParams?.from === "string"
+      ? searchParams.from
+      : Array.isArray(searchParams?.from)
+        ? searchParams?.from[0]
+        : undefined;
+  const archivePageParam =
+    typeof searchParams?.archivePage === "string"
+      ? searchParams.archivePage
+      : Array.isArray(searchParams?.archivePage)
+        ? searchParams.archivePage[0]
+        : undefined;
+
+  const backHref =
+    fromParam === "archive"
+      ? archivePageParam
+        ? `/archive?page=${encodeURIComponent(archivePageParam)}`
+        : "/archive"
+      : "/?view=blog";
+
+  return <PostPageContent post={post} backHref={backHref} />;
 }
