@@ -15,7 +15,10 @@ export type PostCardProps = {
   post: PostSummary;
   href: string;
   className?: string;
-} & Pick<AnchorHTMLAttributes<HTMLAnchorElement>, "onClick" | "tabIndex" | "ariaHidden" | "aria-label">;
+} & Pick<
+  AnchorHTMLAttributes<HTMLAnchorElement>,
+  "onClick" | "tabIndex" | "aria-hidden" | "aria-label"
+>;
 
 export function PostCard({ post, href, className = "", ...linkProps }: PostCardProps) {
   return (
