@@ -12,7 +12,7 @@ type BlogMainProps = {
 };
 
 export function BlogMain({ visible, posts }: BlogMainProps) {
-  const { isTransitioning, handleLinkClick } = usePageTransition();
+  const { isTransitioning, handleLinkClick } = usePageTransition("home");
   const isInteractive = visible && !isTransitioning;
 
   return (
