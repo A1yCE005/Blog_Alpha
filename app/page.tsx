@@ -6,7 +6,7 @@ type PageProps = {
 };
 
 export default async function Page({ searchParams }: PageProps) {
-  const posts = await getAllPosts();
+  const posts = (await getAllPosts()).slice(0, 5);
   const viewParam = searchParams?.view;
   const view = Array.isArray(viewParam) ? viewParam[0] : viewParam;
   const initialBlogView = view === "blog";
