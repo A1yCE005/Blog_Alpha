@@ -133,6 +133,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   const [ready, setReady] = React.useState(false);
   const prefersReduced = usePrefersReducedMotion();
   const glyphs = React.useMemo(() => CONFIG.bgGlyphs.split(""), []);
+  const skipDropRef = React.useRef<boolean>(!!skipDrop);
+  skipDropRef.current = !!skipDrop;
 
   // 用于“在位重定向”与退出动画触发
   const retargetRef = React.useRef<null | ((newWord: string) => void)>(null);
@@ -170,7 +172,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     let particles: P[] = [];
     let bg: Array<{x:number;y:number;c:string;t:number}> = [];
 
-    let phase: "drop" | "morph" | "exit" = skipDrop ? "morph" : "drop";
+    let phase: "drop" | "morph" | "exit" = skipDropRef.current ? "morph" : "drop";
     let wasMorph = phase === "morph";
     let morphElapsedMs = 0;
     let exitElapsedMs = 0;
@@ -308,7 +310,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
       for (let i = 0; i < need; i++) {
         const t = targets[i];
-        pushOne(t, !!skipDrop);
+        pushOne(t, !!skipDropRef.current);
       }
 
       // 背景字符
@@ -428,7 +430,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         if (phase !== "exit") {
           // 阶段切换
           const morphT = dropDurationMs + morphDelayMs;
-          const newPhase: "drop" | "morph" = skipDrop ? "morph" : (elapsedMs >= morphT ? "morph" : "drop");
+          const newPhase: "drop" | "morph" = skipDropRef.current
+            ? "morph"
+            : elapsedMs >= morphT
+            ? "morph"
+            : "drop";
           if (newPhase === "morph" && !wasMorph) morphElapsedMs = 0;
           if (newPhase !== "morph")             morphElapsedMs = 0;
           wasMorph = newPhase === "morph";
@@ -585,7 +591,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     dropDurationMs, morphDelayMs,
     launchXFrac, launchYFrac, launchRadiusFrac,
     launchSpeed, launchSpeedJitter, launchAngleDeg, launchSpreadDeg,
-    glyphSizePx, morphK, dockMaxOffset, skipDrop
+    glyphSizePx, morphK, dockMaxOffset
   ]);
 
   // ★ 当 word 变化时，触发“在位重定向”，产生两阶段的平滑过渡
