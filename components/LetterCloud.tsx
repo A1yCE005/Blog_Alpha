@@ -31,19 +31,11 @@ const CONFIG = {
   bgDensity: 0.22,
   bgSpeed: 0.25,
 
-  // 首轮：抛撒→落地→汇聚
-  dropDurationMs: 1800,
-  morphDelayMs: 1600,
+  // 首轮：温和淡入
+  introDurationMs: 1200,
+  introJitterPx: 42,
+  introFadeMs: 900,
   gravity: 2.8,
-  bounce: -0.28,
-  groundFriction: 0.82,
-  launchXFrac: -0.08,
-  launchYFrac: -0.22,
-  launchRadiusFrac: 0.10,
-  launchSpeed: 6.0,
-  launchSpeedJitter: 0.35,
-  launchAngleDeg: 70,
-  launchSpreadDeg: 24,
 
   // 待机轮播
   idleTargets: ["Lighthosue", "Halo"],
@@ -82,16 +74,14 @@ type WPProps = {
   word?: string;
   gap?: number;
   letterSpacing?: number;
-  gravity?: number; bounce?: number; groundFriction?: number;
-  dropDurationMs?: number; morphDelayMs?: number;
-  launchXFrac?: number; launchYFrac?: number; launchRadiusFrac?: number;
-  launchSpeed?: number; launchSpeedJitter?: number;
-  launchAngleDeg?: number; launchSpreadDeg?: number;
+  gravity?: number;
+  introDurationMs?: number;
+  introFadeMs?: number;
+  introJitterPx?: number;
   outline?: boolean;
   morphK?: number;
   dockMaxOffset?: number;
   glyphSizePx?: number;            // 粒子字大小（px）
-  skipDrop?: boolean;              // 轮播时 true：跳过落地，直接做两阶段过渡
 };
 
 export type WordParticlesHandle = {
@@ -106,25 +96,15 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     letterSpacing = CONFIG.letterSpacing,
 
     gravity = CONFIG.gravity,
-    bounce = CONFIG.bounce,
-    groundFriction = CONFIG.groundFriction,
 
-    dropDurationMs = CONFIG.dropDurationMs,
-    morphDelayMs = CONFIG.morphDelayMs,
-
-    launchXFrac = CONFIG.launchXFrac,
-    launchYFrac = CONFIG.launchYFrac,
-    launchRadiusFrac = CONFIG.launchRadiusFrac,
-    launchSpeed = CONFIG.launchSpeed,
-    launchSpeedJitter = CONFIG.launchSpeedJitter,
-    launchAngleDeg = CONFIG.launchAngleDeg,
-    launchSpreadDeg = CONFIG.launchSpreadDeg,
+    introDurationMs = CONFIG.introDurationMs,
+    introFadeMs = CONFIG.introFadeMs,
+    introJitterPx = CONFIG.introJitterPx,
 
     outline = false,
     morphK,
     dockMaxOffset,
-    glyphSizePx,
-    skipDrop
+    glyphSizePx
   } = props;
 
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
@@ -133,9 +113,6 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   const [ready, setReady] = React.useState(false);
   const prefersReduced = usePrefersReducedMotion();
   const glyphs = React.useMemo(() => CONFIG.bgGlyphs.split(""), []);
-  const skipDropRef = React.useRef<boolean>(!!skipDrop);
-  skipDropRef.current = !!skipDrop;
-
   // 用于“在位重定向”与退出动画触发
   const retargetRef = React.useRef<null | ((newWord: string) => void)>(null);
   const exitTriggerRef = React.useRef<() => void>(() => {});
@@ -163,21 +140,23 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     // 内部状态（不触发 React 渲染）
     let raf = 0;
     type P = {
-      x: number; y: number; vx: number; vy: number;
+      x: number; y: number; vx?: number; vy?: number;
       tx: number; ty: number; c: string;
-      d?: number;                 // 错峰延迟（ms）
-      hox?: number; hoy?: number; // 汇聚方向单位向量
-      hrad?: number;              // 汇聚初始半径
+      sx: number; sy: number; sa: number; // intro 起点
+      startAtMs: number;                  // intro 错峰启动
+      d?: number;                         // morph 错峰延迟（ms）
+      hox?: number; hoy?: number; hrad?: number;
+      alpha?: number;
     };
     let particles: P[] = [];
     let bg: Array<{x:number;y:number;c:string;t:number}> = [];
 
-    let phase: "drop" | "morph" | "exit" = skipDropRef.current ? "morph" : "drop";
-    let wasMorph = phase === "morph";
+    let phase: "intro" | "morph" | "exit" = "intro";
+    let introElapsedMs = 0;
     let morphElapsedMs = 0;
     let exitElapsedMs = 0;
 
-    let elapsedMs = 0, lastTs = 0;
+    let lastTs = 0;
 
     const mouse = { x: -9999, y: -9999 };
     const smouse = { x: -9999, y: -9999 };
@@ -259,7 +238,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       return targets;
     }
 
-    /** 首次构建场景（含首轮 drop） */
+    /** 首次构建场景（温和淡入） */
     function buildScene(text: string) {
       renderWordToTemp(text);
       const targets = sampleTargetsFromTemp(gap);
@@ -269,48 +248,32 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       // 初始化粒子
       particles.length = 0;
       const need = targets.length;
-
-      const pushOne = (t: {x:number;y:number}, bornNearTarget: boolean) => {
-        const jitter = gap * 1.2;
-        const angR = Math.random() * Math.PI * 2;
-        const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
-
-        if (bornNearTarget) {
-          particles.push({
-            x: t.x + (Math.random() - 0.5) * jitter,
-            y: t.y + (Math.random() - 0.5) * jitter,
-            vx: 0, vy: 0,
-            tx: t.x, ty: t.y,
-            d: Math.random() * TRANS_JIT,
-            c: glyphs[(Math.random() * glyphs.length) | 0],
-            hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0
-          });
-        } else {
-          const minDim = Math.min(w, h);
-          const r = launchRadiusFrac * minDim;
-          const ang =
-            (launchAngleDeg + (Math.random() - 0.5) * launchSpreadDeg) *
-            (Math.PI / 180);
-          const spd =
-            launchSpeed * (1 + (Math.random() - 0.5) * launchSpeedJitter);
-          const originX = w * launchXFrac + (Math.random() - 0.5) * r * 2;
-          const originY = h * launchYFrac + (Math.random() - 0.5) * r * 2;
-
-          particles.push({
-            x: originX, y: originY,
-            vx: Math.cos(ang) * spd,
-            vy: Math.sin(ang) * spd,
-            tx: t.x, ty: t.y,
-            d: Math.random() * TRANS_JIT,
-            c: glyphs[(Math.random() * glyphs.length) | 0],
-            hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0
-          });
-        }
-      };
+      const jitter = typeof introJitterPx === "number" ? introJitterPx : gap * 1.2;
+      const introStagger = CONFIG.transitionJitterMs ?? 0;
 
       for (let i = 0; i < need; i++) {
         const t = targets[i];
-        pushOne(t, !!skipDropRef.current);
+        const angR = Math.random() * Math.PI * 2;
+        const r0 = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
+        const sx = t.x + (Math.random() - 0.5) * jitter;
+        const sy = t.y + (Math.random() - 0.5) * jitter;
+
+        particles.push({
+          x: sx,
+          y: sy,
+          sx,
+          sy,
+          sa: 0,
+          tx: t.x,
+          ty: t.y,
+          startAtMs: Math.random() * introStagger,
+          d: Math.random() * TRANS_JIT,
+          c: glyphs[(Math.random() * glyphs.length) | 0],
+          hox: Math.cos(angR),
+          hoy: Math.sin(angR),
+          hrad: r0,
+          alpha: 0
+        });
       }
 
       // 背景字符
@@ -320,13 +283,20 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         for (let xx = 0; xx < w; xx += cell) {
           if (Math.random() < CONFIG.bgDensity) {
             bg.push({
-              x: xx, y: yy,
+              x: xx,
+              y: yy,
               c: glyphs[(Math.random() * glyphs.length) | 0],
               t: Math.random() * 1000
             });
           }
         }
       }
+
+      phase = "intro";
+      introElapsedMs = 0;
+      morphElapsedMs = 0;
+      exitElapsedMs = 0;
+      lastTs = 0;
 
       readyRef.current = true;
       setReady(true);
@@ -339,20 +309,29 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       const targets = sampleTargetsFromTemp(gap);
       const need = targets.length;
 
+      const introStagger = CONFIG.transitionJitterMs ?? 0;
+      const jitter = typeof introJitterPx === "number" ? introJitterPx : gap * 1.2;
+
       // 调整粒子数量
       if (particles.length < need) {
-        const jitter = gap * 1.2;
         for (let i = particles.length; i < need; i++) {
           const t = targets[i];
           const angR = Math.random() * Math.PI * 2;
           const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
+          const startX = t.x + (Math.random() - 0.5) * jitter;
+          const startY = t.y + (Math.random() - 0.5) * jitter;
           particles.push({
-            x: t.x + (Math.random() - 0.5) * jitter,
-            y: t.y + (Math.random() - 0.5) * jitter,
-            vx: 0, vy: 0, tx: t.x, ty: t.y,
+            x: startX,
+            y: startY,
+            sx: startX,
+            sy: startY,
+            sa: 0,
+            tx: t.x, ty: t.y,
+            startAtMs: Math.random() * introStagger,
             d: Math.random() * TRANS_JIT,
             c: glyphs[(Math.random() * glyphs.length) | 0],
-            hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0
+            hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0,
+            alpha: 0
           });
         }
       } else if (particles.length > need) {
@@ -361,21 +340,29 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
       // 写入新目标 & 刷新错峰与汇聚方向
       for (let i = 0; i < need; i++) {
-        particles[i].tx = targets[i].x;
-        particles[i].ty = targets[i].y;
-        particles[i].d  = Math.random() * TRANS_JIT;
+        const p = particles[i];
+        p.tx = targets[i].x;
+        p.ty = targets[i].y;
+        p.d  = Math.random() * TRANS_JIT;
+        p.startAtMs = Math.random() * introStagger;
+        p.sx = p.x;
+        p.sy = p.y;
+        p.sa = typeof p.alpha === "number" ? p.alpha : 0;
+        p.alpha = p.sa;
 
         const angR = Math.random() * Math.PI * 2;
         const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
-        particles[i].hox = Math.cos(angR);
-        particles[i].hoy = Math.sin(angR);
-        particles[i].hrad = r0;
+        p.hox = Math.cos(angR);
+        p.hoy = Math.sin(angR);
+        p.hrad = r0;
       }
 
-      // 进入 morph 并重置计时
-      phase = "morph";
-      wasMorph = false;
+      // 重新启动 intro，并重置计时
+      phase = "intro";
+      introElapsedMs = 0;
       morphElapsedMs = 0;
+      exitElapsedMs = 0;
+      lastTs = 0;
     }
 
     // 暴露给外层
@@ -409,7 +396,6 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       if (!lastTs) lastTs = ts;
       const dt = ts - lastTs; lastTs = ts;
       const fscale = Math.min(2, Math.max(0.5, dt / 16.6667));
-      elapsedMs += dt;
 
       const w = canvas.width / DPR, h = canvas.height / DPR;
 
@@ -427,20 +413,12 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       (ctx as any).globalAlpha = 1;
 
       if (!prefersReduced) {
-        if (phase !== "exit") {
-          // 阶段切换
-          const morphT = dropDurationMs + morphDelayMs;
-          const newPhase: "drop" | "morph" = skipDropRef.current
-            ? "morph"
-            : elapsedMs >= morphT
-            ? "morph"
-            : "drop";
-          if (newPhase === "morph" && !wasMorph) morphElapsedMs = 0;
-          if (newPhase !== "morph")             morphElapsedMs = 0;
-          wasMorph = newPhase === "morph";
-          phase = newPhase;
-        } else {
+        if (phase === "exit") {
           exitElapsedMs += dt;
+        } else if (phase === "intro") {
+          introElapsedMs += dt;
+        } else {
+          morphElapsedMs += dt;
         }
 
         // 平滑鼠标
@@ -448,28 +426,30 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         smouse.x += (mouse.x - smouse.x) * a;
         smouse.y += (mouse.y - smouse.y) * a;
 
-        for (const p of particles) {
-          if (phase === "drop") {
-            // ——落地阶段——
-            p.vy += gravity * 0.08 * fscale;
-            p.x += p.vx * fscale; p.y += p.vy * fscale;
+        const hasParticles = particles.length > 0;
+        let introSettled = phase !== "intro" || !hasParticles;
+        const introDur = Math.max(1, introDurationMs || 1200);
+        const fadeDur = Math.max(1, typeof introFadeMs === "number" ? introFadeMs : introDur);
 
-            const groundY = h - 10;
-            if (p.y > groundY) {
-              p.y = groundY; p.vy *= bounce;
-              p.vx = p.vx * groundFriction + (Math.random() - 0.5) * 1.6;
-              if (Math.abs(p.vy) < 0.12) p.vy = 0;
+        for (const p of particles) {
+          if (phase === "intro") {
+            const startDelay = p.startAtMs || 0;
+            const local = (introElapsedMs - startDelay) / introDur;
+            const clamped = clamp01(local);
+            const eased = easeInOut(clamped);
+            p.x = p.sx + (p.tx - p.sx) * eased;
+            p.y = p.sy + (p.ty - p.sy) * eased;
+            if (clamped >= 1) {
+              p.x = p.tx;
+              p.y = p.ty;
+            } else {
+              introSettled = false;
             }
-            const wall = 8;
-            if (p.y >= groundY - 0.5) {
-              if (p.x < wall) { p.x = wall; p.vx = -p.vx * 0.7; }
-              else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
-            } else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
+            const fadeLocal = clamp01((introElapsedMs - startDelay) / fadeDur);
+            const fade = easeInOut(fadeLocal);
+            p.alpha = p.sa + (1 - p.sa) * fade;
           } else if (phase === "morph") {
             // ——两阶段形态过渡——
-            morphElapsedMs += dt;
-
-            // 轻微“挤开”
             let pushX = 0, pushY = 0;
             const dxm = p.x - smouse.x, dym = p.y - smouse.y;
             const r = CONFIG.mouseRepelRadius, d = Math.hypot(dxm, dym);
@@ -515,14 +495,22 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             p.x += dx * tt; p.y += dy * tt;
 
             if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
+            p.alpha = 0.85 + 0.15 * easeInOut(tLocal);
           } else {
             // ——退出阶段：向四周喷散 + 淡出——
-            p.vy += gravity * 0.04 * fscale;
-            p.vx *= 0.985;
-            p.vy *= 0.985;
-            p.x += p.vx * fscale;
-            p.y += p.vy * fscale;
+            const nextVx = (p.vx ?? 0) * 0.985;
+            let nextVy = (p.vy ?? 0) + gravity * 0.04 * fscale;
+            nextVy *= 0.985;
+            p.vx = nextVx;
+            p.vy = nextVy;
+            p.x += nextVx * fscale;
+            p.y += nextVy * fscale;
           }
+        }
+
+        if (phase === "intro" && introSettled) {
+          phase = "morph";
+          morphElapsedMs = 0;
         }
       } else {
         for (const p of particles) {
@@ -531,6 +519,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             p.y += p.vy ?? 0;
           } else {
             p.x = p.tx; p.y = p.ty;
+            p.alpha = 1;
           }
         }
       }
@@ -545,11 +534,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
       for (const p of particles) {
         // 轻微淡入
-        let alpha = 1;
+        let alpha = typeof p.alpha === "number" ? p.alpha : 1;
         if (phase === "exit") {
           const fade = 1 - clamp01(exitElapsedMs / 1400);
-          alpha = Math.max(0, fade);
-        } else if (wasMorph) {
+          alpha = Math.max(0, fade) * alpha;
+        } else if (phase === "morph" && typeof p.alpha !== "number") {
           const tLocal = clamp01((morphElapsedMs - (p.d || 0)) / (CONFIG.transitionMs || 1200));
           alpha = 0.85 + 0.15 * easeInOut(tLocal);
         }
@@ -587,10 +576,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     gap, letterSpacing,
-    gravity, bounce, groundFriction,
-    dropDurationMs, morphDelayMs,
-    launchXFrac, launchYFrac, launchRadiusFrac,
-    launchSpeed, launchSpeedJitter, launchAngleDeg, launchSpreadDeg,
+    gravity,
+    introDurationMs, introFadeMs, introJitterPx,
     glyphSizePx, morphK, dockMaxOffset
   ]);
 
@@ -631,7 +618,6 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   const router = useRouter();
 
   // 轮播控制
-  const [skipDrop, setSkipDrop] = React.useState(false);
   const idleIdxRef = React.useRef(0);
   const idleTimerRef = React.useRef<number | undefined>(undefined);
   const idleStartRef = React.useRef<number | undefined>(undefined);
@@ -662,11 +648,8 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     if (typeof m.glyphSizePx === "number") setGlyphSizePx(m.glyphSizePx);
 
     const numKeys = [
-      "gravity","bounce","groundFriction",
-      "dropDurationMs","morphDelayMs",
-      "launchXFrac","launchYFrac","launchRadiusFrac",
-      "launchSpeed","launchSpeedJitter",
-      "launchAngleDeg","launchSpreadDeg",
+      "gravity",
+      "introDurationMs","introFadeMs","introJitterPx",
       "mouseRepelRadius","mouseRepelForce","mouseSmooth","dockDeadzone",
       "bgDensity","bgSpeed","wordScale","letterSpacing",
       "transitionMs","transitionJitterMs",
@@ -687,14 +670,10 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     if (idleStartRef.current) clearTimeout(idleStartRef.current);
     if (idleTimerRef.current) clearInterval(idleTimerRef.current);
 
-    setSkipDrop(false); // 首轮保留抛撒
-    const initialDelay =
-      (CONFIG.dropDurationMs ?? 1200) +
-      (CONFIG.morphDelayMs ?? 900) +
-      (CONFIG.idleStartDelayMs ?? 1200);
+    const introTotal = (CONFIG.introDurationMs ?? 1200) + (CONFIG.transitionMs ?? 1200);
+    const initialDelay = introTotal + (CONFIG.idleStartDelayMs ?? 1200);
 
     idleStartRef.current = window.setTimeout(() => {
-      setSkipDrop(true);
       const list = Array.isArray(CONFIG.idleTargets) ? CONFIG.idleTargets : [];
       if (!list.length) return;
       idleTimerRef.current = window.setInterval(() => {
@@ -760,20 +739,11 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
               letterSpacing={CONFIG.letterSpacing}
               glyphSizePx={glyphSizePx}
               gravity={CONFIG.gravity}
-              bounce={CONFIG.bounce}
-              groundFriction={CONFIG.groundFriction}
-              dropDurationMs={CONFIG.dropDurationMs}
-              morphDelayMs={CONFIG.morphDelayMs}
-              launchXFrac={CONFIG.launchXFrac}
-              launchYFrac={CONFIG.launchYFrac}
-              launchRadiusFrac={CONFIG.launchRadiusFrac}
-              launchSpeed={CONFIG.launchSpeed}
-              launchSpeedJitter={CONFIG.launchSpeedJitter}
-              launchAngleDeg={CONFIG.launchAngleDeg}
-              launchSpreadDeg={CONFIG.launchSpreadDeg}
+              introDurationMs={CONFIG.introDurationMs}
+              introFadeMs={CONFIG.introFadeMs}
+              introJitterPx={CONFIG.introJitterPx}
               morphK={morphK}
               dockMaxOffset={dockMaxOffset}
-              skipDrop={skipDrop}
             />
           </div>
           <h1 className="sr-only" aria-live="polite">{word}</h1>
