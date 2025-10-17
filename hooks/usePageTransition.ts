@@ -24,6 +24,7 @@ export function usePageTransition(): UsePageTransitionResult {
   const prefersReducedMotion = usePrefersReducedMotion();
   const [isTransitioning, setIsTransitioning] = React.useState(false);
   const transitionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTransitioningRef = React.useRef(isTransitioning);
 
   const currentPathname = React.useMemo(() => pathname, [pathname]);
   const searchParamsString = React.useMemo(
@@ -40,7 +41,11 @@ export function usePageTransition(): UsePageTransitionResult {
   }, []);
 
   React.useEffect(() => {
-    if (!isTransitioning) {
+    isTransitioningRef.current = isTransitioning;
+  }, [isTransitioning]);
+
+  React.useEffect(() => {
+    if (!isTransitioningRef.current) {
       return;
     }
 
@@ -49,8 +54,9 @@ export function usePageTransition(): UsePageTransitionResult {
       transitionTimeoutRef.current = null;
     }
 
+    isTransitioningRef.current = false;
     setIsTransitioning(false);
-  }, [currentPathname, searchParamsString, isTransitioning]);
+  }, [currentPathname, searchParamsString]);
 
   const handleLinkClick = React.useCallback<HandleLinkClick>(
     (event, href) => {
