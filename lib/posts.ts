@@ -109,9 +109,16 @@ export async function getAllPosts(): Promise<PostSummary[]> {
 }
 
 export async function getPostBySlug(slug: string): Promise<PostContent | null> {
-  const filePath = path.join(POSTS_DIR, `${slug}.md`);
+  const slugSegments = slug.split(/[\\/]/).filter(Boolean);
+  if (slugSegments.length === 0) {
+    return null;
+  }
+
+  const filePathBase = path.join(POSTS_DIR, ...slugSegments);
+  const filePath = filePathBase.endsWith(".md") ? filePathBase : `${filePathBase}.md`;
+  const normalizedSlug = slugSegments[slugSegments.length - 1]!.replace(/\.md$/, "");
   try {
-    return await parsePostFile(filePath, slug);
+    return await parsePostFile(filePath, normalizedSlug);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return null;
