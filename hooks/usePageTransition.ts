@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
@@ -19,9 +19,24 @@ type UsePageTransitionResult = {
 
 export function usePageTransition(): UsePageTransitionResult {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [isTransitioning, setIsTransitioning] = React.useState(false);
   const transitionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const searchParamsString = React.useMemo(
+    () => searchParams?.toString() ?? "",
+    [searchParams]
+  );
+
+  React.useEffect(() => {
+    if (transitionTimeoutRef.current) {
+      clearTimeout(transitionTimeoutRef.current);
+      transitionTimeoutRef.current = null;
+    }
+    setIsTransitioning(false);
+  }, [pathname, searchParamsString]);
 
   React.useEffect(() => {
     return () => {
