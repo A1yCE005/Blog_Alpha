@@ -92,15 +92,17 @@ export default async function ArchivePage({ searchParams }: PageProps) {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-10 px-6 py-16 sm:px-10">
-      <Link
-        href={{ pathname: "/", query: { view: "blog" } }}
-        className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-500 transition-colors duration-200 hover:text-violet-200"
-      >
-        <span aria-hidden>←</span> Back to the cloud
-      </Link>
-      <header className="flex flex-col gap-3 text-left">
-        <p className="text-sm font-medium uppercase tracking-[0.3em] text-violet-300/80">The Journal</p>
-        <h1 className="text-3xl font-semibold text-zinc-50 sm:text-4xl">Archive</h1>
+      <header className="flex flex-col gap-6 text-left">
+        <div className="flex flex-col gap-3">
+          <Link
+            href={{ pathname: "/", query: { view: "blog" } }}
+            className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-500 transition-colors duration-200 hover:text-violet-200"
+          >
+            <span aria-hidden>←</span> Back to the cloud
+          </Link>
+          <p className="text-sm font-medium uppercase tracking-[0.3em] text-violet-300/80">The Journal</p>
+          <h1 className="text-3xl font-semibold text-zinc-50 sm:text-4xl">Archive</h1>
+        </div>
         <p className="max-w-2xl text-sm text-zinc-400 sm:text-base">
           Browse every post we&apos;ve published. Follow the full timeline of essays, signals, and experiments from the Letter Cloud studio.
         </p>
