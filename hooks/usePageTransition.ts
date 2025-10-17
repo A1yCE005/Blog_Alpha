@@ -24,7 +24,7 @@ export function usePageTransition(): UsePageTransitionResult {
   const prefersReducedMotion = usePrefersReducedMotion();
   const [isTransitioning, setIsTransitioning] = React.useState(false);
   const transitionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isTransitioningRef = React.useRef(isTransitioning);
+  const pendingNavigationRef = React.useRef(false);
 
   const currentPathname = React.useMemo(() => pathname, [pathname]);
   const searchParamsString = React.useMemo(
@@ -37,15 +37,13 @@ export function usePageTransition(): UsePageTransitionResult {
       if (transitionTimeoutRef.current) {
         clearTimeout(transitionTimeoutRef.current);
       }
+
+      pendingNavigationRef.current = false;
     };
   }, []);
 
   React.useEffect(() => {
-    isTransitioningRef.current = isTransitioning;
-  }, [isTransitioning]);
-
-  React.useEffect(() => {
-    if (!isTransitioningRef.current) {
+    if (!pendingNavigationRef.current) {
       return;
     }
 
@@ -54,7 +52,7 @@ export function usePageTransition(): UsePageTransitionResult {
       transitionTimeoutRef.current = null;
     }
 
-    isTransitioningRef.current = false;
+    pendingNavigationRef.current = false;
     setIsTransitioning(false);
   }, [currentPathname, searchParamsString]);
 
@@ -81,6 +79,7 @@ export function usePageTransition(): UsePageTransitionResult {
       }
 
       event.preventDefault();
+      pendingNavigationRef.current = true;
       setIsTransitioning(true);
       transitionTimeoutRef.current = setTimeout(() => {
         router.push(href);
