@@ -1,73 +1,25 @@
 "use client";
 
-import React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 import type { PostSummary } from "@/lib/posts";
-import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { PostCard } from "@/components/PostCard";
+import { usePageTransition } from "@/hooks/usePageTransition";
 
 type BlogMainProps = {
   visible: boolean;
   posts: PostSummary[];
 };
 
-const TRANSITION_DURATION_MS = 300;
-
 export function BlogMain({ visible, posts }: BlogMainProps) {
-  const router = useRouter();
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const [transitioningSlug, setTransitioningSlug] = React.useState<string | null>(null);
-  const transitionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  React.useEffect(() => {
-    return () => {
-      if (transitionTimeoutRef.current) {
-        clearTimeout(transitionTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const handlePostClick = React.useCallback(
-    (event: React.MouseEvent<HTMLAnchorElement>, slug: string) => {
-      if (prefersReducedMotion) {
-        return;
-      }
-
-      if (
-        event.defaultPrevented ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        event.altKey ||
-        event.button !== 0
-      ) {
-        return;
-      }
-
-      if (transitioningSlug) {
-        event.preventDefault();
-        return;
-      }
-
-      event.preventDefault();
-      setTransitioningSlug(slug);
-      transitionTimeoutRef.current = setTimeout(() => {
-        router.push(`/posts/${slug}`);
-        transitionTimeoutRef.current = null;
-      }, TRANSITION_DURATION_MS);
-    },
-    [prefersReducedMotion, router, transitioningSlug]
-  );
-
-  const isInteractive = visible && !transitioningSlug;
+  const { isTransitioning, handleLinkClick } = usePageTransition();
+  const isInteractive = visible && !isTransitioning;
 
   return (
     <>
       <div
         aria-hidden
-        className={`page-transition-overlay ${transitioningSlug ? "page-transition-overlay-active" : ""}`}
+        className={`page-transition-overlay ${isTransitioning ? "page-transition-overlay-active" : ""}`}
       />
       <div
         aria-hidden={!visible}
@@ -91,6 +43,7 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
             <nav className="flex flex-wrap items-center gap-3">
               <Link
                 href="/archive"
+                onClick={(event) => handleLinkClick(event, "/archive")}
                 className="inline-flex items-center rounded-full border border-white/10 px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-zinc-200 transition-colors duration-200 hover:border-white/40 hover:text-white focus-visible:border-white/60 focus-visible:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/60"
                 tabIndex={isInteractive ? undefined : -1}
               >
@@ -98,6 +51,7 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
               </Link>
               <Link
                 href="/about"
+                onClick={(event) => handleLinkClick(event, "/about")}
                 className="inline-flex items-center rounded-full border border-white/10 px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-zinc-200 transition-colors duration-200 hover:border-white/40 hover:text-white focus-visible:border-white/60 focus-visible:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/60"
                 tabIndex={isInteractive ? undefined : -1}
               >
@@ -113,7 +67,7 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
                   key={post.slug}
                   post={post}
                   href={`/posts/${post.slug}`}
-                  onClick={(event) => handlePostClick(event, post.slug)}
+                  onClick={(event) => handleLinkClick(event, `/posts/${post.slug}`)}
                   tabIndex={isInteractive ? undefined : -1}
                 />
               ))}
