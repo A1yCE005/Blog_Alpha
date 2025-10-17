@@ -224,7 +224,8 @@ type PostPageContentProps = {
 };
 
 export function PostPageContent({ post, backHref = "/?view=blog" }: PostPageContentProps) {
-  const { isTransitioning, handleLinkClick } = usePageTransition();
+  const resetKey = `post:${post.slug}`;
+  const { isTransitioning, handleLinkClick } = usePageTransition(resetKey);
   const isInteractive = !isTransitioning;
 
   return (

@@ -75,7 +75,8 @@ export function ArchivePageContent({
   previousHref,
   nextHref,
 }: ArchivePageContentProps) {
-  const { isTransitioning, handleLinkClick } = usePageTransition();
+  const resetKey = `archive:${page}`;
+  const { isTransitioning, handleLinkClick } = usePageTransition(resetKey);
   const isInteractive = !isTransitioning;
 
   const archiveLinkSearch = new URLSearchParams({ from: "archive" });
