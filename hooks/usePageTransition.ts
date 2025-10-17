@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
@@ -19,17 +19,42 @@ type UsePageTransitionResult = {
 
 export function usePageTransition(): UsePageTransitionResult {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [isTransitioning, setIsTransitioning] = React.useState(false);
   const transitionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingNavigationRef = React.useRef(false);
+
+  const currentPathname = React.useMemo(() => pathname, [pathname]);
+  const searchParamsString = React.useMemo(
+    () => searchParams?.toString() ?? "",
+    [searchParams]
+  );
 
   React.useEffect(() => {
     return () => {
       if (transitionTimeoutRef.current) {
         clearTimeout(transitionTimeoutRef.current);
       }
+
+      pendingNavigationRef.current = false;
     };
   }, []);
+
+  React.useEffect(() => {
+    if (!pendingNavigationRef.current) {
+      return;
+    }
+
+    if (transitionTimeoutRef.current) {
+      clearTimeout(transitionTimeoutRef.current);
+      transitionTimeoutRef.current = null;
+    }
+
+    pendingNavigationRef.current = false;
+    setIsTransitioning(false);
+  }, [currentPathname, searchParamsString]);
 
   const handleLinkClick = React.useCallback<HandleLinkClick>(
     (event, href) => {
@@ -54,6 +79,7 @@ export function usePageTransition(): UsePageTransitionResult {
       }
 
       event.preventDefault();
+      pendingNavigationRef.current = true;
       setIsTransitioning(true);
       transitionTimeoutRef.current = setTimeout(() => {
         router.push(href);
