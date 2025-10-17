@@ -2,7 +2,6 @@
 
 import React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -13,7 +12,7 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 
 import type { PostContent } from "@/lib/posts";
-import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { usePageTransition } from "@/hooks/usePageTransition";
 
 const KATEX_MATHML_TAGS = [
   "annotation",
@@ -219,57 +218,14 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
-const TRANSITION_DURATION_MS = 300;
-
 type PostPageContentProps = {
   post: PostContent;
+  backHref?: string;
 };
 
-export function PostPageContent({ post }: PostPageContentProps) {
-  const router = useRouter();
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const [isTransitioning, setIsTransitioning] = React.useState(false);
-  const transitionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  React.useEffect(() => {
-    return () => {
-      if (transitionTimeoutRef.current) {
-        clearTimeout(transitionTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const handleBackClick = React.useCallback(
-    (event: React.MouseEvent<HTMLAnchorElement>) => {
-      if (prefersReducedMotion) {
-        return;
-      }
-
-      if (
-        event.defaultPrevented ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        event.altKey ||
-        event.button !== 0
-      ) {
-        return;
-      }
-
-      if (isTransitioning) {
-        event.preventDefault();
-        return;
-      }
-
-      event.preventDefault();
-      setIsTransitioning(true);
-      transitionTimeoutRef.current = setTimeout(() => {
-        router.push("/?view=blog");
-        transitionTimeoutRef.current = null;
-      }, TRANSITION_DURATION_MS);
-    },
-    [prefersReducedMotion, isTransitioning, router]
-  );
+export function PostPageContent({ post, backHref = "/?view=blog" }: PostPageContentProps) {
+  const { isTransitioning, handleLinkClick } = usePageTransition();
+  const isInteractive = !isTransitioning;
 
   return (
     <>
@@ -285,9 +241,10 @@ export function PostPageContent({ post }: PostPageContentProps) {
         <div className="mx-auto w-full max-w-3xl px-6 py-20 sm:px-10">
           <div className="mb-10">
             <Link
-              href={{ pathname: "/", query: { view: "blog" } }}
-              onClick={handleBackClick}
+              href={backHref}
+              onClick={(event) => handleLinkClick(event, backHref)}
               className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-500 transition-colors duration-200 hover:text-violet-200"
+              tabIndex={isInteractive ? undefined : -1}
             >
               <span aria-hidden>←</span> Back to the cloud
             </Link>
