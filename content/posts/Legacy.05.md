@@ -1,13 +1,9 @@
 ---
 title: "Legacy.05"
 date: "2023-04-03"
-author: A1yCE.L
-categories: ["Legacy"]
-tags: ["novel", "Chinese"]
-ShowReadingTime: true
-hideSummary: false
-hiddenInHomelist: true
-searchHidden: true
+tags:
+ - novel
+ - Chinese
 ---
 
 ## 候鸟

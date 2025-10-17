@@ -1,6 +1,6 @@
 ---
 title: "Some Foundemental Tests"
-date: 2024-09-22T21:52:53+08:00
+date: "1999-01-01"
 excerpt: It should work, hopefully.
 ---
 

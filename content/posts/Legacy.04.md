@@ -2,12 +2,9 @@
 title: "Legacy.04"
 date: "2023-08-26"
 author: A1yCE.L
-categories: ["Legacy"]
-tags: ["quotes", "Chinese", "poem"]
-ShowReadingTime: true
-hideSummary: false
-hiddenInHomelist: true
-searchHidden: true
+tags:
+ - quotes
+ - Chinese
 ---
 
 ## 散漫言辞·再续·其一

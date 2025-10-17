@@ -1,13 +1,10 @@
 ---
 title: "Legacy.02"
 date: "2023-12-30"
-author: A1yCE.L
-categories: ["Legacy"]
-tags: ["quotes", "Chinese", "poem", "prose"]
-ShowReadingTime: true
-hideSummary: false
-hiddenInHomelist: true
-searchHidden: true
+tags:
+ - poem
+ - prose
+ - Chinese
 ---
 
 # 心悸与白雏菊

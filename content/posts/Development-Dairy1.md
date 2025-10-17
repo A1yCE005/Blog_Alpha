@@ -1,11 +1,7 @@
 ---
 title: "Development Dairy1"
 date: "2025-03-20"
-author: A1yCE
-categories: ["Development Diary"]
 tags: ["Development", "Diary"]
-ShowReadingTime: true
-hideSummary: false
 ---
 
 Recruiting **AFlodit** as 3D Modeller, Lighthouse (actually not only this blog, but also our team's name) is going to reach its great advent. With the recent establishment of our task tracker, each team member is now clearly aware of their responsibilities, giving us the feeling of becoming increasingly professional and efficient.

@@ -1,13 +1,10 @@
 ---
 title: "Legacy.06"
 date: "2023-02-28"
-author: A1yCE.L
-categories: ["Legacy"]
-tags: ["quotes", "Chinese", "poem"]
-ShowReadingTime: true
-hideSummary: false
-hiddenInHomelist: true
-searchHidden: true
+tags:
+ - quotes
+ - poem
+ - Chinese
 ---
 
 # 两句 抒情

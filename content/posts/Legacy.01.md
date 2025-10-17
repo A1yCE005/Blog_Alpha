@@ -1,13 +1,9 @@
 ---
 title: "Legacy.01"
 date: "2024-03-26"
-author: A1yCE.L
-categories: ["Legacy"]
-tags: ["prose", "Chinese"]
-ShowReadingTime: true
-hideSummary: false
-hiddenInHomelist: true
-searchHidden: true
+tags:
+ - prose
+ - Chinese
 ---
 
 晚自习时下起了雨，我想与的同桌换个位置。我斟酌了很久，也许我该说，让我看看这雨。

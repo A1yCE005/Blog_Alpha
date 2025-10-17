@@ -1,13 +1,9 @@
 ---
 title: "Legacy.03"
 date: "2023-08-31"
-author: A1yCE.L
-categories: ["Legacy"]
-tags: ["prose", "Chinese"]
-ShowReadingTime: true
-hideSummary: false
-hiddenInHomelist: true
-searchHidden: true
+tags:
+ - prose
+ - Chinese
 ---
 
 # 提线木偶
