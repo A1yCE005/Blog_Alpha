@@ -7,6 +7,10 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 export const metadata: Metadata = {
   title: "Lighthosue",
   description: "Midjourney-style letter cloud hero animation",
+  icons: {
+    icon: "/image/icon.svg",
+    shortcut: "/image/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
