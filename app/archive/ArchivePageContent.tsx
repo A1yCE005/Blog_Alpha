@@ -127,6 +127,7 @@ export function ArchivePageContent({
 
   const hasFilters = topTags.length > 0;
   const showEmptyState = filteredPosts.length === 0;
+  const filterAnimationKey = selectedTag ?? "all";
 
   const archiveLinkSearch = new URLSearchParams({ from: "archive" });
   if (activePage > 1) {
@@ -210,7 +211,7 @@ export function ArchivePageContent({
           </header>
 
           {!showEmptyState ? (
-            <div className="flex flex-col gap-6">
+            <div key={`posts:${filterAnimationKey}`} className="flex flex-col gap-6 filter-fade-in">
               {filteredPosts.map((post) => {
                 const postHref = buildPostHref(post.slug);
                 return (
@@ -225,7 +226,10 @@ export function ArchivePageContent({
               })}
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 bg-zinc-950/50 p-12 text-center text-sm text-zinc-400">
+            <div
+              key={`empty:${filterAnimationKey}`}
+              className="filter-fade-in flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 bg-zinc-950/50 p-12 text-center text-sm text-zinc-400"
+            >
               {selectedTag ? (
                 <p>
                   No posts found for <span className="font-semibold text-zinc-200">#{selectedTag}</span> in the archive.
