@@ -1,11 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type MouseEvent, type ReactNode } from "react";
+import {
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 
 import { PostCard } from "@/components/PostCard";
 import type { PostSummary } from "@/lib/posts";
 import { usePageTransition } from "@/hooks/usePageTransition";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+
+const FILTER_ANIMATION_DURATION = 300;
 
 type TagSummary = {
   name: string;
@@ -85,6 +95,7 @@ export function ArchivePageContent({
   topTags,
 }: ArchivePageContentProps) {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const isFiltering = Boolean(selectedTag);
   const filteredPosts = useMemo(() => {
@@ -93,6 +104,75 @@ export function ArchivePageContent({
     }
     return allPosts.filter((post) => post.tags.includes(selectedTag));
   }, [allPosts, posts, selectedTag]);
+
+  const [displayedPosts, setDisplayedPosts] = useState(filteredPosts);
+  const [animationPhase, setAnimationPhase] = useState<
+    "idle" | "fading-out" | "fading-in"
+  >("idle");
+  const displayedPostsRef = useRef(filteredPosts);
+  const previousSelectedTagRef = useRef<string | null>(selectedTag);
+  const hasInitializedRef = useRef(false);
+
+  useEffect(() => {
+    displayedPostsRef.current = displayedPosts;
+  }, [displayedPosts]);
+
+  useEffect(() => {
+    const previousSelectedTag = previousSelectedTagRef.current;
+    previousSelectedTagRef.current = selectedTag;
+
+    if (prefersReducedMotion) {
+      setDisplayedPosts(filteredPosts);
+      setAnimationPhase("idle");
+      hasInitializedRef.current = true;
+      return;
+    }
+
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      setDisplayedPosts(filteredPosts);
+      setAnimationPhase("idle");
+      return;
+    }
+
+    const filterChanged = previousSelectedTag !== selectedTag;
+
+    if (!filterChanged) {
+      setDisplayedPosts(filteredPosts);
+      setAnimationPhase("idle");
+      return;
+    }
+
+    const previousPosts = displayedPostsRef.current;
+    const postsAreEqual =
+      previousPosts.length === filteredPosts.length &&
+      previousPosts.every((post, index) => post.slug === filteredPosts[index]?.slug);
+
+    if (postsAreEqual) {
+      setDisplayedPosts(filteredPosts);
+      setAnimationPhase("idle");
+      return;
+    }
+
+    setAnimationPhase("fading-out");
+
+    let fadeInTimeout: number | undefined;
+    const fadeOutTimeout = window.setTimeout(() => {
+      setDisplayedPosts(filteredPosts);
+      setAnimationPhase("fading-in");
+
+      fadeInTimeout = window.setTimeout(() => {
+        setAnimationPhase("idle");
+      }, FILTER_ANIMATION_DURATION);
+    }, FILTER_ANIMATION_DURATION);
+
+    return () => {
+      window.clearTimeout(fadeOutTimeout);
+      if (fadeInTimeout) {
+        window.clearTimeout(fadeInTimeout);
+      }
+    };
+  }, [filteredPosts, prefersReducedMotion, selectedTag]);
 
   const activePage = isFiltering ? 1 : page;
   const activeLastPage = isFiltering ? 1 : lastPage;
@@ -126,7 +206,14 @@ export function ArchivePageContent({
   };
 
   const hasFilters = topTags.length > 0;
-  const showEmptyState = filteredPosts.length === 0;
+  const showEmptyState = displayedPosts.length === 0;
+  const animationClass = prefersReducedMotion
+    ? ""
+    : animationPhase === "fading-out"
+      ? "filter-fade-out"
+      : animationPhase === "fading-in"
+        ? "filter-fade-in"
+        : "";
 
   const archiveLinkSearch = new URLSearchParams({ from: "archive" });
   if (activePage > 1) {
@@ -210,8 +297,8 @@ export function ArchivePageContent({
           </header>
 
           {!showEmptyState ? (
-            <div className="flex flex-col gap-6">
-              {filteredPosts.map((post) => {
+            <div className={`flex flex-col gap-6 ${animationClass}`}>
+              {displayedPosts.map((post) => {
                 const postHref = buildPostHref(post.slug);
                 return (
                   <PostCard
@@ -225,7 +312,9 @@ export function ArchivePageContent({
               })}
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 bg-zinc-950/50 p-12 text-center text-sm text-zinc-400">
+            <div
+              className={`flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 bg-zinc-950/50 p-12 text-center text-sm text-zinc-400 ${animationClass}`}
+            >
               {selectedTag ? (
                 <p>
                   No posts found for <span className="font-semibold text-zinc-200">#{selectedTag}</span> in the archive.
