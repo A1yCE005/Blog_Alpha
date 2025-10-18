@@ -2,9 +2,38 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getAllPosts } from "@/lib/posts";
+import type { PostSummary } from "@/lib/posts";
 import { ArchivePageContent } from "./ArchivePageContent";
 
 const POSTS_PER_PAGE = 10;
+
+type TagSummary = {
+  name: string;
+  count: number;
+};
+
+function getTopTags(posts: PostSummary[], limit = 5): TagSummary[] {
+  const tagCounts = new Map<string, number>();
+
+  for (const post of posts) {
+    for (const tag of post.tags) {
+      const normalized = tag.trim();
+      if (!normalized) continue;
+      tagCounts.set(normalized, (tagCounts.get(normalized) ?? 0) + 1);
+    }
+  }
+
+  return Array.from(tagCounts.entries())
+    .sort((a, b) => {
+      const countDifference = b[1] - a[1];
+      if (countDifference !== 0) {
+        return countDifference;
+      }
+      return a[0].localeCompare(b[0]);
+    })
+    .slice(0, limit)
+    .map(([name, count]) => ({ name, count }));
+}
 
 export const metadata: Metadata = {
   title: "Archive · Lighthouse",
@@ -40,6 +69,7 @@ export default async function ArchivePage({ searchParams }: PageProps) {
   }
 
   const posts = await getAllPosts();
+  const topTags = getTopTags(posts);
   const totalPages = Math.ceil(posts.length / POSTS_PER_PAGE);
   const lastPage = Math.max(totalPages, 1);
 
@@ -66,6 +96,7 @@ export default async function ArchivePage({ searchParams }: PageProps) {
       hasNext={hasNext}
       previousHref={previousHref}
       nextHref={nextHref}
+      topTags={topTags}
     />
   );
 }
