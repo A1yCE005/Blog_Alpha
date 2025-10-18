@@ -110,13 +110,34 @@ export function ArchivePageContent({
     "idle" | "fading-out" | "fading-in"
   >("idle");
   const displayedPostsRef = useRef(filteredPosts);
+  const previousSelectedTagRef = useRef<string | null>(selectedTag);
+  const hasInitializedRef = useRef(false);
 
   useEffect(() => {
     displayedPostsRef.current = displayedPosts;
   }, [displayedPosts]);
 
   useEffect(() => {
+    const previousSelectedTag = previousSelectedTagRef.current;
+    previousSelectedTagRef.current = selectedTag;
+
     if (prefersReducedMotion) {
+      setDisplayedPosts(filteredPosts);
+      setAnimationPhase("idle");
+      hasInitializedRef.current = true;
+      return;
+    }
+
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      setDisplayedPosts(filteredPosts);
+      setAnimationPhase("idle");
+      return;
+    }
+
+    const filterChanged = previousSelectedTag !== selectedTag;
+
+    if (!filterChanged) {
       setDisplayedPosts(filteredPosts);
       setAnimationPhase("idle");
       return;
@@ -128,6 +149,8 @@ export function ArchivePageContent({
       previousPosts.every((post, index) => post.slug === filteredPosts[index]?.slug);
 
     if (postsAreEqual) {
+      setDisplayedPosts(filteredPosts);
+      setAnimationPhase("idle");
       return;
     }
 
@@ -149,7 +172,7 @@ export function ArchivePageContent({
         window.clearTimeout(fadeInTimeout);
       }
     };
-  }, [filteredPosts, prefersReducedMotion]);
+  }, [filteredPosts, prefersReducedMotion, selectedTag]);
 
   const activePage = isFiltering ? 1 : page;
   const activeLastPage = isFiltering ? 1 : lastPage;
