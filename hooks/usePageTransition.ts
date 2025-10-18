@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
-const TRANSITION_DURATION_MS = 300;
+const TRANSITION_DURATION_MS = 400;
 
 type HandleLinkClick = (
   event: React.MouseEvent<HTMLAnchorElement>,
