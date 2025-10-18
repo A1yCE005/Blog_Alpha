@@ -44,6 +44,22 @@ a { text-decoration: none; }
   animation: pageFadeIn 0.45s ease-out both;
 }
 
+@keyframes filterFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+.filter-fade-out {
+  animation: filterFadeOut 0.3s ease-in both;
+}
+
 .page-transition-overlay {
   position: fixed;
   inset: 0;
@@ -64,6 +80,10 @@ a { text-decoration: none; }
   }
 
   .filter-fade-in {
+    animation: none;
+  }
+
+  .filter-fade-out {
     animation: none;
   }
 
