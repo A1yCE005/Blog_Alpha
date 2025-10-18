@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import type { MouseEvent, ReactNode } from "react";
+import { useMemo, useState, type MouseEvent, type ReactNode } from "react";
 
 import { PostCard } from "@/components/PostCard";
 import type { PostSummary } from "@/lib/posts";
 import { usePageTransition } from "@/hooks/usePageTransition";
+
+type TagSummary = {
+  name: string;
+  count: number;
+};
 
 type ArchivePageContentProps = {
   posts: PostSummary[];
@@ -15,6 +20,7 @@ type ArchivePageContentProps = {
   hasNext: boolean;
   previousHref: string;
   nextHref: string;
+  topTags: TagSummary[];
 };
 
 type PaginationButtonProps = {
@@ -74,10 +80,37 @@ export function ArchivePageContent({
   hasNext,
   previousHref,
   nextHref,
+  topTags,
 }: ArchivePageContentProps) {
   const resetKey = `archive:${page}`;
   const { isTransitioning, handleLinkClick } = usePageTransition(resetKey);
   const isInteractive = !isTransitioning;
+
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+
+  const filteredPosts = useMemo(() => {
+    if (!selectedTag) {
+      return posts;
+    }
+    return posts.filter((post) => post.tags.includes(selectedTag));
+  }, [posts, selectedTag]);
+
+  const toggleTag = (tag: string) => {
+    if (!isInteractive) {
+      return;
+    }
+    setSelectedTag((current) => (current === tag ? null : tag));
+  };
+
+  const clearFilter = () => {
+    if (!isInteractive) {
+      return;
+    }
+    setSelectedTag(null);
+  };
+
+  const hasFilters = topTags.length > 0;
+  const showEmptyState = filteredPosts.length === 0;
 
   const archiveLinkSearch = new URLSearchParams({ from: "archive" });
   if (page > 1) {
@@ -120,11 +153,49 @@ export function ArchivePageContent({
             <p className="max-w-2xl text-sm text-zinc-400 sm:text-base">
               Browse every post we&apos;ve published. Follow the full timeline of essays, signals, and experiments from the Letter Cloud studio.
             </p>
+            {hasFilters && (
+              <div className="mt-2 flex flex-col gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500">Filter by tag</span>
+                <div className="flex flex-wrap gap-2">
+                  {topTags.map((tag) => {
+                    const isActive = selectedTag === tag.name;
+                    return (
+                      <button
+                        key={tag.name}
+                        type="button"
+                        onClick={() => toggleTag(tag.name)}
+                        disabled={!isInteractive}
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+                          isActive
+                            ? "border-violet-400/80 bg-violet-500/10 text-violet-200"
+                            : "border-white/10 text-zinc-400 hover:border-violet-400/60 hover:text-violet-200"
+                        } ${!isInteractive ? "cursor-not-allowed opacity-60" : ""}`}
+                      >
+                        <span>#{tag.name}</span>
+                        <span className="text-[0.65rem] text-zinc-500">{tag.count}</span>
+                      </button>
+                    );
+                  })}
+                  {selectedTag && (
+                    <button
+                      type="button"
+                      onClick={clearFilter}
+                      disabled={!isInteractive}
+                      className={`inline-flex items-center rounded-full border border-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-zinc-500 transition-colors duration-200 hover:border-zinc-400/60 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+                        !isInteractive ? "cursor-not-allowed opacity-60" : ""
+                      }`}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </header>
 
-          {posts.length > 0 ? (
+          {!showEmptyState ? (
             <div className="flex flex-col gap-6">
-              {posts.map((post) => {
+              {filteredPosts.map((post) => {
                 const postHref = buildPostHref(post.slug);
                 return (
                   <PostCard
@@ -139,9 +210,15 @@ export function ArchivePageContent({
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 bg-zinc-950/50 p-12 text-center text-sm text-zinc-400">
-              <p>
-                No posts found yet. Drop a markdown file into <code>content/posts</code> to get started.
-              </p>
+              {selectedTag ? (
+                <p>
+                  No posts found for <span className="font-semibold text-zinc-200">#{selectedTag}</span> on this page.
+                </p>
+              ) : (
+                <p>
+                  No posts found yet. Drop a markdown file into <code>content/posts</code> to get started.
+                </p>
+              )}
             </div>
           )}
 
