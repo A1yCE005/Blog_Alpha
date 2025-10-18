@@ -15,7 +15,8 @@ import type { PostSummary } from "@/lib/posts";
 import { usePageTransition } from "@/hooks/usePageTransition";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
-const FILTER_ANIMATION_DURATION = 300;
+const FILTER_FADE_OUT_DURATION = 300;
+const FILTER_FADE_IN_DURATION = 450;
 
 type TagSummary = {
   name: string;
@@ -163,8 +164,8 @@ export function ArchivePageContent({
 
       fadeInTimeout = window.setTimeout(() => {
         setAnimationPhase("idle");
-      }, FILTER_ANIMATION_DURATION);
-    }, FILTER_ANIMATION_DURATION);
+      }, FILTER_FADE_IN_DURATION);
+    }, FILTER_FADE_OUT_DURATION);
 
     return () => {
       window.clearTimeout(fadeOutTimeout);
