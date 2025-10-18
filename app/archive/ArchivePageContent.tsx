@@ -14,6 +14,7 @@ type TagSummary = {
 
 type ArchivePageContentProps = {
   posts: PostSummary[];
+  allPosts: PostSummary[];
   page: number;
   lastPage: number;
   hasPrevious: boolean;
@@ -74,6 +75,7 @@ function PaginationButton({
 
 export function ArchivePageContent({
   posts,
+  allPosts,
   page,
   lastPage,
   hasPrevious,
@@ -82,18 +84,32 @@ export function ArchivePageContent({
   nextHref,
   topTags,
 }: ArchivePageContentProps) {
-  const resetKey = `archive:${page}`;
-  const { isTransitioning, handleLinkClick } = usePageTransition(resetKey);
-  const isInteractive = !isTransitioning;
-
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
+  const isFiltering = Boolean(selectedTag);
   const filteredPosts = useMemo(() => {
     if (!selectedTag) {
       return posts;
     }
-    return posts.filter((post) => post.tags.includes(selectedTag));
-  }, [posts, selectedTag]);
+    return allPosts.filter((post) => post.tags.includes(selectedTag));
+  }, [allPosts, posts, selectedTag]);
+
+  const activePage = isFiltering ? 1 : page;
+  const activeLastPage = isFiltering ? 1 : lastPage;
+  const activeHasPrevious = isFiltering ? false : hasPrevious;
+  const activeHasNext = isFiltering ? false : hasNext;
+
+  const getArchivePageHref = (pageNumber: number) =>
+    pageNumber <= 1 ? "/archive" : `/archive?page=${pageNumber}`;
+
+  const activePreviousHref = activeHasPrevious
+    ? previousHref
+    : getArchivePageHref(activePage);
+  const activeNextHref = activeHasNext ? nextHref : getArchivePageHref(activePage);
+
+  const resetKey = selectedTag ? `archive:tag:${selectedTag}` : `archive:${activePage}`;
+  const { isTransitioning, handleLinkClick } = usePageTransition(resetKey);
+  const isInteractive = !isTransitioning;
 
   const toggleTag = (tag: string) => {
     if (!isInteractive) {
@@ -113,8 +129,8 @@ export function ArchivePageContent({
   const showEmptyState = filteredPosts.length === 0;
 
   const archiveLinkSearch = new URLSearchParams({ from: "archive" });
-  if (page > 1) {
-    archiveLinkSearch.set("archivePage", String(page));
+  if (activePage > 1) {
+    archiveLinkSearch.set("archivePage", String(activePage));
   }
 
   const buildPostHref = (slug: string) => {
@@ -212,7 +228,7 @@ export function ArchivePageContent({
             <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 bg-zinc-950/50 p-12 text-center text-sm text-zinc-400">
               {selectedTag ? (
                 <p>
-                  No posts found for <span className="font-semibold text-zinc-200">#{selectedTag}</span> on this page.
+                  No posts found for <span className="font-semibold text-zinc-200">#{selectedTag}</span> in the archive.
                 </p>
               ) : (
                 <p>
@@ -222,19 +238,24 @@ export function ArchivePageContent({
             </div>
           )}
 
-          <nav aria-label="Archive pagination" className="mt-auto flex flex-wrap items-center justify-between gap-4 border-t border-white/5 pt-6">
+          <nav
+            aria-label="Archive pagination"
+            className="mt-auto flex flex-wrap items-center justify-between gap-4 border-t border-white/5 pt-6"
+          >
             <span className="text-sm text-zinc-400">
-              Page {page} of {lastPage}
+              Page {activePage} of {activeLastPage}
             </span>
             <div className="flex items-center gap-3">
               <PaginationButton
-                disabled={!hasPrevious}
-                href={previousHref}
+                disabled={!activeHasPrevious}
+                href={activePreviousHref}
                 rel="prev"
-                aria-label={hasPrevious ? `Go to page ${page - 1}` : undefined}
+                aria-label={
+                  activeHasPrevious ? `Go to page ${activePage - 1}` : undefined
+                }
                 onClick={
-                  hasPrevious
-                    ? (event) => handleLinkClick(event, previousHref)
+                  activeHasPrevious
+                    ? (event) => handleLinkClick(event, activePreviousHref)
                     : undefined
                 }
                 tabIndex={isInteractive ? undefined : -1}
@@ -242,12 +263,16 @@ export function ArchivePageContent({
                 ← Previous
               </PaginationButton>
               <PaginationButton
-                disabled={!hasNext}
-                href={nextHref}
+                disabled={!activeHasNext}
+                href={activeNextHref}
                 rel="next"
-                aria-label={hasNext ? `Go to page ${page + 1}` : undefined}
+                aria-label={
+                  activeHasNext ? `Go to page ${activePage + 1}` : undefined
+                }
                 onClick={
-                  hasNext ? (event) => handleLinkClick(event, nextHref) : undefined
+                  activeHasNext
+                    ? (event) => handleLinkClick(event, activeNextHref)
+                    : undefined
                 }
                 tabIndex={isInteractive ? undefined : -1}
               >

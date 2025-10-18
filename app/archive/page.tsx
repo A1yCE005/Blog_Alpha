@@ -90,6 +90,7 @@ export default async function ArchivePage({ searchParams }: PageProps) {
   return (
     <ArchivePageContent
       posts={visiblePosts}
+      allPosts={posts}
       page={page}
       lastPage={lastPage}
       hasPrevious={hasPrevious}
