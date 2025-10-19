@@ -154,12 +154,6 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     () => (idleWordsProp && idleWordsProp.length > 0 ? idleWordsProp : CONFIG.idleWords || []),
     [idleWordsProp]
   );
-  const baseWordLength = React.useMemo(() => {
-    const pool = new Set<string>();
-    if (CONFIG.word) pool.add(CONFIG.word);
-    idleWords.forEach((w) => pool.add(w));
-    return Array.from(pool).reduce((max, w) => Math.max(max, w.length), 1);
-  }, [idleWords]);
   const idleHold = idleHoldMsProp ?? CONFIG.idleHoldMs ?? 2800;
   const idleScatter = idleScatterMsProp ?? CONFIG.idleScatterMs ?? 1400;
   const idleGatherDelay = idleGatherDelayMsProp ?? CONFIG.idleGatherDelayMs ?? 520;
@@ -209,6 +203,24 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     };
     let particles: P[] = [];
     let baseParticleCount = 0;
+
+    type WordCacheEntry = {
+      canvasW: number;
+      canvasH: number;
+      gap: number;
+      letterSpacing: number;
+      count: number;
+      targets: Array<{ x: number; y: number }>;
+    };
+    const wordCache = new Map<string, WordCacheEntry>();
+    type LayoutMeta = {
+      size: number;
+      width: number;
+      spacingPx: number;
+      glyphWidths: number[];
+    };
+    let baselineArea = 0;
+    let baselineWordLength = 0;
 
     type Phase = "drop" | "morph" | "idleScatter" | "exit";
     let phase: Phase = "drop";
@@ -325,52 +337,105 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       const w = canvas.width / DPR;
       const h = canvas.height / DPR;
 
-      // 根据 wordScale 估算字号，然后按目标宽 85% 自适配
-      const referenceLetters = baseWordLength > 0 ? baseWordLength : 1;
+      const minSize = 12;
+      const maxHeight = Math.max(minSize, h * 0.9);
+      const targetW = w * 0.85;
       const baseSize = Math.floor(Math.min(w, h) * CONFIG.wordScale);
-      const inverseFactor = referenceLetters / Math.max(1, text.length);
-      let size = Math.max(12, Math.floor(baseSize * inverseFactor));
+
+      const measureWord = (sz: number) => {
+        const glyphWidths: number[] = new Array(text.length);
+        tctx.font = `${CONFIG.fontWeight} ${sz * DPR}px ${CONFIG.fontFamily}`;
+        const spacingPx = sz * (letterSpacing ?? 0.06);
+        let width = 0;
+        for (let i = 0; i < text.length; i++) {
+          const wGlyph = tctx.measureText(text[i]).width / DPR;
+          glyphWidths[i] = wGlyph;
+          width += wGlyph;
+          if (i < text.length - 1) width += spacingPx;
+        }
+        return { width, spacingPx, glyphWidths };
+      };
+
+      const clampSize = (sz: number) => Math.max(minSize, Math.min(maxHeight, sz));
+      const needsBaseline = baselineArea <= 0 || text.length > baselineWordLength;
+
+      let layout: LayoutMeta;
+
+      if (needsBaseline) {
+        let size = clampSize(baseSize);
+        let metrics = measureWord(size);
+        if (metrics.width > targetW) {
+          const scale = targetW / Math.max(metrics.width, 1e-3);
+          size = clampSize(size * scale);
+          metrics = measureWord(size);
+        }
+        if (size > maxHeight) {
+          size = maxHeight;
+          metrics = measureWord(size);
+        }
+        layout = {
+          size,
+          width: metrics.width,
+          spacingPx: metrics.spacingPx,
+          glyphWidths: metrics.glyphWidths
+        };
+        baselineArea = metrics.width * size;
+        baselineWordLength = text.length;
+      } else {
+        let size = clampSize(Math.sqrt(baselineArea / Math.max(text.length, 1)));
+        let metrics = measureWord(size);
+        for (let iter = 0; iter < 6; iter++) {
+          const width = metrics.width;
+          const area = width * size;
+          let adjusted = false;
+          if (width > targetW) {
+            const scale = targetW / Math.max(width, 1e-3);
+            size = clampSize(size * scale);
+            metrics = measureWord(size);
+            adjusted = true;
+          }
+          if (size > maxHeight) {
+            size = maxHeight;
+            metrics = measureWord(size);
+            adjusted = true;
+          }
+          if (adjusted) {
+            continue;
+          }
+          if (baselineArea > 0) {
+            const ratio = Math.sqrt(baselineArea / Math.max(area, 1));
+            if (Math.abs(ratio - 1) < 0.01) {
+              break;
+            }
+            size = clampSize(size * Math.max(0.75, Math.min(1.25, ratio)));
+            metrics = measureWord(size);
+          } else {
+            break;
+          }
+        }
+        layout = {
+          size,
+          width: metrics.width,
+          spacingPx: metrics.spacingPx,
+          glyphWidths: metrics.glyphWidths
+        };
+      }
 
       tctx.setTransform(1, 0, 0, 1, 0, 0);
       tctx.clearRect(0, 0, temp.width, temp.height);
       tctx.fillStyle = "white";
       tctx.textAlign = "center";
       tctx.textBaseline = "middle";
+      tctx.font = `${CONFIG.fontWeight} ${layout.size * DPR}px ${CONFIG.fontFamily}`;
 
-      const targetW = w * 0.85;
-
-      const measureTotal = (sz: number) => {
-        tctx.font = `${CONFIG.fontWeight} ${sz * DPR}px ${CONFIG.fontFamily}`;
-        const sp = sz * (letterSpacing ?? 0.06);
-        let width = 0;
-        for (let i = 0; i < text.length; i++) {
-          width += tctx.measureText(text[i]).width / DPR;
-          if (i < text.length - 1) width += sp;
-        }
-        return { width, sp };
-      };
-
-      let { width: totalW, sp: spacingPx } = measureTotal(size);
-      const maxHeight = h * 0.6;
-      if (totalW > targetW) {
-        const fitted = Math.max(12, size * (targetW / Math.max(1e-3, totalW)));
-        size = Math.min(fitted, maxHeight);
-        ({ width: totalW, sp: spacingPx } = measureTotal(size));
-      } else if (size > maxHeight) {
-        size = Math.max(12, maxHeight);
-        ({ width: totalW, sp: spacingPx } = measureTotal(size));
-      }
-
-      tctx.font = `${CONFIG.fontWeight} ${size * DPR}px ${CONFIG.fontFamily}`;
-      let x = (w - totalW) / 2;
+      let x = (w - layout.width) / 2;
       const midY = (h / 2) * DPR;
-
       for (let i = 0; i < text.length; i++) {
-        const ch = text[i];
-        const cw = tctx.measureText(ch).width / DPR;
-        tctx.fillText(ch, (x + cw / 2) * DPR, midY);
-        x += cw + spacingPx;
+        const cw = layout.glyphWidths[i] ?? 0;
+        tctx.fillText(text[i], (x + cw / 2) * DPR, midY);
+        x += cw + layout.spacingPx;
       }
+
     }
 
     function sampleTargetsFromTemp(spacing = gap) {
@@ -410,6 +475,32 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         attempt++;
       }
 
+      return targets;
+    }
+
+    function prepareTargets(text: string, desiredCount?: number) {
+      const cached = wordCache.get(text);
+      const matches =
+        cached &&
+        cached.canvasW === canvas.width &&
+        cached.canvasH === canvas.height &&
+        Math.abs(cached.gap - gap) < 1e-6 &&
+        Math.abs(cached.letterSpacing - letterSpacing) < 1e-6 &&
+        (!desiredCount || cached.count >= desiredCount);
+      if (matches) {
+        return cached.targets;
+      }
+
+      renderWordToTemp(text);
+      const targets = collectTargets(desiredCount);
+      wordCache.set(text, {
+        canvasW: canvas.width,
+        canvasH: canvas.height,
+        gap,
+        letterSpacing,
+        count: targets.length,
+        targets
+      });
       return targets;
     }
 
@@ -546,8 +637,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       idleHoldElapsed = 0;
       idleScatterElapsed = 0;
       idleGatherDelayLeft = 0;
-      renderWordToTemp(text);
-      const targets = collectTargets();
+      const targets = prepareTargets(text);
       const w = canvas.width / DPR;
       const h = canvas.height / DPR;
 
@@ -610,14 +700,13 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         syncIdleIndex(newWord);
       }
 
-      renderWordToTemp(newWord);
       const desiredCount =
         particles.length > 0
           ? particles.length
           : baseParticleCount > 0
           ? baseParticleCount
           : undefined;
-      const targets = collectTargets(desiredCount);
+      const targets = prepareTargets(newWord, desiredCount);
       const currentCount = desiredCount ?? targets.length;
       const mappedTargets = remapTargets(targets, currentCount);
 
@@ -692,6 +781,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       const h = Math.max(1, Math.floor(rect.height * DPR));
       canvas.width = w; canvas.height = h;
       (ctx as any).setTransform(DPR, 0, 0, DPR, 0, 0);
+      wordCache.clear();
+      baselineArea = 0;
+      baselineWordLength = 0;
       activeTransitionMs = baseTransitionMs;
       activeTransitionJitter = baseTransitionJitter;
       updateGatherTiming();
@@ -930,8 +1022,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     launchSpeed, launchSpeedJitter, launchAngleDeg, launchSpreadDeg,
     glyphSizePx, morphK, dockMaxOffset,
     idleWords, idleHold, idleScatter, idleGatherDelay,
-    idleGustStrength, idleGustJitter, idleAmbientDrift, idleGatherTransitionMs,
-    baseWordLength
+    idleGustStrength, idleGustJitter, idleAmbientDrift, idleGatherTransitionMs
   ]);
 
   // ★ 当 word 变化时，触发“在位重定向”，产生两阶段的平滑过渡
