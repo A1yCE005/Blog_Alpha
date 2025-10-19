@@ -70,6 +70,7 @@ function usePrefersReducedMotion() {
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 // 近似 cubic-bezier(0.4, 0.0, 0.2, 1)
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - clamp01(t), 3);
 
 type WPProps = {
   word?: string;
@@ -161,13 +162,22 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       d?: number;                 // 错峰延迟（ms）
       hox?: number; hoy?: number; // 汇聚方向单位向量
       hrad?: number;              // 汇聚初始半径
+      mx0?: number; my0?: number; // 直接汇聚时的起点
+      sa?: number; sr0?: number;  // 散开：起始角度 / 半径
+      sr1?: number;               // 散开：目标半径
+      sspin?: number;             // 散开：自转角速度
+      sdelay?: number;            // 散开：延迟起跑
+      slift?: number;             // 散开：抬升高度
+      snPhase?: number;           // 散开：抖动相位
+      snFreq?: number;            // 散开：抖动频率
     };
     let particles: P[] = [];
 
     let currentTargetWord = word;
-    let queuedWord: string | null = null;
+    let queuedWord: { word: string; route: "funnel" | "direct" } | null = null;
 
     let phase: "drop" | "morph" | "exit" | "scatter" = "drop";
+    let morphRoute: "funnel" | "direct" = "funnel";
     let wasMorph = false;
     let morphElapsedMs = 0;
     let exitElapsedMs = 0;
@@ -175,13 +185,17 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
     const transitionMs = CONFIG.transitionMs ?? 1200;
     const SCATTER = {
-      durationMs: Math.max(720, transitionMs * 0.95),
-      baseSpeed: 6.8,
-      jitter: 0.55,
-      upward: 1.35,
-      swirl: 3.2,
-      damping: 0.94
-    };
+      durationMs: Math.max(1300, transitionMs * 1.45),
+      burstMs: 520,
+      floatMs: 640,
+      ringMinFrac: 0.18,
+      ringMaxFrac: 0.32,
+      spinBase: 0.0012,
+      spinJitter: 0.0016,
+      wobble: 0.1,
+      liftBase: 10,
+      liftJitter: 18
+    } as const;
 
     let elapsedMs = 0, lastTs = 0;
 
@@ -312,11 +326,13 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     }
 
     /** ★ 在位重定向：仅更新目标，不清场、不重建循环 */
-    function retargetToWord(newWord: string) {
+    function retargetToWord(newWord: string, route: "funnel" | "direct" = "funnel") {
       if (phase === "exit") return;
       renderWordToTemp(newWord);
       const targets = sampleTargetsFromTemp(gap);
       const need = targets.length;
+
+      morphRoute = route;
 
       // 调整粒子数量
       if (particles.length < need) {
@@ -349,6 +365,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         particles[i].hox = Math.cos(angR);
         particles[i].hoy = Math.sin(angR);
         particles[i].hrad = r0;
+        particles[i].mx0 = particles[i].x;
+        particles[i].my0 = particles[i].y;
       }
 
       // 进入 morph 并重置计时
@@ -358,28 +376,37 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       currentTargetWord = newWord;
     }
 
-    function startScatter(newWord: string) {
+    function startScatter(target: { word: string; route: "funnel" | "direct" }) {
       const w = canvas.width / DPR;
       const h = canvas.height / DPR;
       const hubX = w * (CONFIG.funnelXFrac ?? 0.5);
       const hubY = h * (CONFIG.funnelYFrac ?? 0.5);
+      const minDim = Math.min(w, h);
 
       scatterElapsedMs = 0;
       phase = "scatter";
-      queuedWord = newWord;
+      queuedWord = target;
+      morphRoute = target.route;
 
       for (const p of particles) {
         const dx = p.x - hubX;
         const dy = p.y - hubY;
         const dist = Math.hypot(dx, dy) || 1;
-        const ux = dx / dist;
-        const uy = dy / dist;
-        const speed = SCATTER.baseSpeed * (1 + (Math.random() - 0.5) * SCATTER.jitter);
-        const tangentX = -uy;
-        const tangentY = ux;
-        const swirl = (Math.random() - 0.5) * SCATTER.swirl;
-        p.vx = ux * speed + tangentX * swirl + (Math.random() - 0.5) * 0.9;
-        p.vy = uy * speed + tangentY * swirl - SCATTER.upward + (Math.random() - 0.5) * 0.9;
+        const baseRadius = dist;
+        const extra =
+          minDim * (SCATTER.ringMinFrac + Math.random() * (SCATTER.ringMaxFrac - SCATTER.ringMinFrac));
+        const maxRadius = minDim * 0.55;
+        p.sa = Math.atan2(dy, dx);
+        p.sr0 = baseRadius;
+        p.sr1 = Math.min(baseRadius + extra, maxRadius);
+        const spinSign = Math.random() < 0.5 ? -1 : 1;
+        p.sspin = (SCATTER.spinBase + Math.random() * SCATTER.spinJitter) * spinSign;
+        p.sdelay = Math.random() * 140;
+        p.slift = SCATTER.liftBase + Math.random() * SCATTER.liftJitter;
+        p.snPhase = Math.random() * Math.PI * 2;
+        p.snFreq = 0.002 + Math.random() * 0.0035;
+        p.vx = 0;
+        p.vy = 0;
       }
     }
 
@@ -387,18 +414,19 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       if (phase === "exit") return;
 
       if (!options?.disperse || prefersReduced) {
-        if (phase === "scatter" && queuedWord === newWord) return;
+        if (phase === "scatter" && queuedWord?.word === newWord) return;
         if (currentTargetWord === newWord) return;
         queuedWord = null;
-        retargetToWord(newWord);
+        retargetToWord(newWord, "funnel");
         return;
       }
 
-      if (phase === "scatter" && queuedWord === newWord) {
+      if (phase === "scatter") {
+        startScatter({ word: newWord, route: "direct" });
         return;
       }
 
-      startScatter(newWord);
+      startScatter({ word: newWord, route: "direct" });
     }
 
     // 暴露给外层
@@ -499,22 +527,34 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             }
 
             // ——阶段性目标：funnel → out——
-            const hubX = w * (CONFIG.funnelXFrac ?? 0.5);
-            const hubY = h * (CONFIG.funnelYFrac ?? 0.5);
-            const split = clamp01(CONFIG.funnelSplit ?? 0.45);
             const tLocal = clamp01((morphElapsedMs - (p.d || 0)) / (CONFIG.transitionMs || 1200));
 
             let targetX: number, targetY: number;
-            if (tLocal < split) {
-              const u = easeInOut(tLocal / Math.max(1e-3, split));
-              const currR = (p.hrad ?? (CONFIG.funnelRadiusPx ?? 18)) * (1 - u);
-              const j = (CONFIG.funnelJitterPx ?? 6) * 0.05;
-              targetX = hubX + (p.hox ?? 1) * currR + (Math.random() - 0.5) * j;
-              targetY = hubY + (p.hoy ?? 0) * currR + (Math.random() - 0.5) * j;
+            if (morphRoute === "direct") {
+              const startX = typeof p.mx0 === "number" ? p.mx0 : p.x;
+              const startY = typeof p.my0 === "number" ? p.my0 : p.y;
+              const v = easeInOut(tLocal);
+              const jitter = (CONFIG.funnelJitterPx ?? 6) * 0.18;
+              const wobble = Math.sin((elapsedMs + (p.d ?? 0)) * 0.003 + (p.snPhase ?? 0)) * jitter * 0.4;
+              const hx = (p.hox ?? 0) * jitter * 0.5;
+              const hy = (p.hoy ?? 0) * jitter * 0.5;
+              targetX = startX + (p.tx - startX) * v + hx + wobble;
+              targetY = startY + (p.ty - startY) * v + hy + wobble * 0.8;
             } else {
-              const v = easeInOut((tLocal - split) / Math.max(1e-3, 1 - split));
-              targetX = hubX + (p.tx - hubX) * v;
-              targetY = hubY + (p.ty - hubY) * v;
+              const hubX = w * (CONFIG.funnelXFrac ?? 0.5);
+              const hubY = h * (CONFIG.funnelYFrac ?? 0.5);
+              const split = clamp01(CONFIG.funnelSplit ?? 0.45);
+              if (tLocal < split) {
+                const u = easeInOut(tLocal / Math.max(1e-3, split));
+                const currR = (p.hrad ?? (CONFIG.funnelRadiusPx ?? 18)) * (1 - u);
+                const j = (CONFIG.funnelJitterPx ?? 6) * 0.05;
+                targetX = hubX + (p.hox ?? 1) * currR + (Math.random() - 0.5) * j;
+                targetY = hubY + (p.hoy ?? 0) * currR + (Math.random() - 0.5) * j;
+              } else {
+                const v = easeInOut((tLocal - split) / Math.max(1e-3, 1 - split));
+                targetX = hubX + (p.tx - hubX) * v;
+                targetY = hubY + (p.ty - hubY) * v;
+              }
             }
 
             targetX += pushX; targetY += pushY;
@@ -530,33 +570,53 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
             if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
           } else if (phase === "scatter") {
-            const dxm = p.x - smouse.x;
-            const dym = p.y - smouse.y;
+            const hubX = w * (CONFIG.funnelXFrac ?? 0.5);
+            const hubY = h * (CONFIG.funnelYFrac ?? 0.5);
+            const delay = p.sdelay ?? 0;
+            const localMs = Math.max(0, scatterElapsedMs - delay);
+            const progress = clamp01(localMs / SCATTER.durationMs);
+            const burstT = easeOutCubic(Math.min(1, localMs / Math.max(1, SCATTER.burstMs)));
+            const floatPhase = Math.min(1, localMs / Math.max(1, SCATTER.floatMs));
+            const liftSin = Math.sin(floatPhase * Math.PI);
+            const lift = Math.pow(Math.max(0, liftSin), 0.8) * (p.slift ?? 0);
+
+            const startRadius = p.sr0 ?? Math.hypot(p.x - hubX, p.y - hubY);
+            const targetRadius = p.sr1 ?? startRadius;
+            const radius = startRadius + (targetRadius - startRadius) * burstT;
+            const wobbleAmp = (targetRadius - startRadius) * SCATTER.wobble;
+            p.sa = (p.sa ?? Math.atan2(p.y - hubY, p.x - hubX)) + (p.sspin ?? 0) * dt * fscale;
+            const wobble = Math.sin(localMs * (p.snFreq ?? 0.002) + (p.snPhase ?? 0)) * wobbleAmp;
+
+            let x = hubX + Math.cos(p.sa ?? 0) * (radius + wobble);
+            let y = hubY + Math.sin(p.sa ?? 0) * (radius + wobble) - lift;
+
+            const dxm = x - smouse.x;
+            const dym = y - smouse.y;
             const r = CONFIG.mouseRepelRadius;
             const d = Math.hypot(dxm, dym);
             if (d < r) {
               const dead = CONFIG.dockDeadzone || 0;
               const t = Math.max(0, (d - dead) / Math.max(1e-3, r - dead));
               const fall = 1 - t;
-              const base = CONFIG.mouseRepelForce * fall * fall;
+              const base = CONFIG.mouseRepelForce * fall * fall * 0.55;
               const ux = d > 1e-3 ? dxm / d : 0;
               const uy = d > 1e-3 ? dym / d : 0;
-              p.vx += ux * base * 0.06 * fscale;
-              p.vy += uy * base * 0.06 * fscale;
+              x += ux * base * 0.35;
+              y += uy * base * 0.35;
             }
 
-            p.vy += gravity * 0.022 * fscale;
-            p.x += p.vx * fscale;
-            p.y += p.vy * fscale;
-
-            const wall = 8;
-            if (p.x < wall) { p.x = wall; p.vx = Math.abs(p.vx) * 0.6; }
-            else if (p.x > w - wall) { p.x = w - wall; p.vx = -Math.abs(p.vx) * 0.6; }
-            if (p.y < wall) { p.y = wall; p.vy = Math.abs(p.vy) * 0.6; }
-            else if (p.y > h - wall) { p.y = h - wall; p.vy = -Math.abs(p.vy) * 0.5; }
-
-            p.vx *= SCATTER.damping;
-            p.vy *= SCATTER.damping;
+            const easeFollow = 0.48 + 0.42 * progress;
+            const px = p.x;
+            const py = p.y;
+            p.x += (x - p.x) * easeFollow;
+            p.y += (y - p.y) * easeFollow;
+            const wall = 10;
+            if (p.x < wall) p.x = wall;
+            else if (p.x > w - wall) p.x = w - wall;
+            if (p.y < wall) p.y = wall;
+            else if (p.y > h - wall) p.y = h - wall;
+            p.vx = p.x - px;
+            p.vy = p.y - py;
           } else {
             // ——退出阶段：向四周喷散 + 淡出——
             p.vy += gravity * 0.04 * fscale;
@@ -603,13 +663,14 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       }
       (ctx as any).globalAlpha = 1;
 
-      if (phase === "scatter" && scatterElapsedMs >= SCATTER.durationMs) {
+      if (phase === "scatter" && scatterElapsedMs >= SCATTER.durationMs + 160) {
         const next = queuedWord;
         queuedWord = null;
         scatterElapsedMs = 0;
-        if (next && next !== currentTargetWord) {
-          retargetToWord(next);
+        if (next && next.word !== currentTargetWord) {
+          retargetToWord(next.word, next.route);
         } else if (next) {
+          morphRoute = next.route;
           phase = "morph";
         }
       }
