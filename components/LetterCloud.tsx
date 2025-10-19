@@ -1084,6 +1084,7 @@ type FullscreenHomeProps = {
 export default function FullscreenHome({ posts, initialBlogView = false }: FullscreenHomeProps) {
   const [word, setWord] = React.useState(CONFIG.word);
   const [gap, setGap] = React.useState(CONFIG.sampleGap);
+  const [letterSpacing, setLetterSpacing] = React.useState(CONFIG.letterSpacing);
   const [morphK, setMorphK] = React.useState<number>(0.14);
   const [dockMaxOffset, setDockMaxOffset] = React.useState<number>(10);
   const [glyphSizePx, setGlyphSizePx] = React.useState<number | undefined>(undefined);
@@ -1134,6 +1135,37 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     particlesRef.current?.triggerExit();
   }, [hasEnteredBlog, router]);
 
+  React.useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const applyResponsiveTuning = (isMobile: boolean) => {
+      if (isMobile) {
+        setGap(CONFIG.sampleGap * 0.7);
+        setLetterSpacing(CONFIG.letterSpacing * 0.75);
+        setGlyphSizePx(Math.max(6, Math.floor(CONFIG.sampleGap * 1.4 * 0.8)));
+      } else {
+        setGap(CONFIG.sampleGap);
+        setLetterSpacing(CONFIG.letterSpacing);
+        setGlyphSizePx(undefined);
+      }
+    };
+
+    applyResponsiveTuning(mq.matches);
+    const listener = (event: MediaQueryListEvent) => applyResponsiveTuning(event.matches);
+
+    let cleanup: (() => void) | undefined;
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", listener);
+      cleanup = () => mq.removeEventListener("change", listener);
+    } else if (typeof mq.addListener === "function") {
+      mq.addListener(listener);
+      cleanup = () => mq.removeListener(listener);
+    }
+
+    return () => {
+      cleanup?.();
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-black text-zinc-100">
       {!heroRetired && (
@@ -1147,7 +1179,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
               ref={particlesRef}
               word={word}
               gap={gap}
-              letterSpacing={CONFIG.letterSpacing}
+              letterSpacing={letterSpacing}
               glyphSizePx={glyphSizePx}
               gravity={CONFIG.gravity}
               bounce={CONFIG.bounce}
