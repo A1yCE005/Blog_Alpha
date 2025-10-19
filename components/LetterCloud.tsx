@@ -42,6 +42,11 @@ const CONFIG = {
   launchAngleDeg: 60,
   launchSpreadDeg: 24,
 
+  // 在位重定向：短暂爆散 → 再次聚合
+  scatterDurationMs: 900,
+  scatterForceMin: 6.5,
+  scatterForceMax: 13.5,
+
   // 两形态之间的总体过渡
   transitionMs: 1200,
   transitionJitterMs: 180,
@@ -82,6 +87,10 @@ type WPProps = {
   morphK?: number;
   dockMaxOffset?: number;
   glyphSizePx?: number;            // 粒子字大小（px）
+  scatterDurationMs?: number;
+  scatterForceMin?: number;
+  scatterForceMax?: number;
+  onWordCommit?: (word: string) => void;
 };
 
 export type WordParticlesHandle = {
@@ -113,7 +122,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     outline = false,
     morphK,
     dockMaxOffset,
-    glyphSizePx
+    glyphSizePx,
+    scatterDurationMs = CONFIG.scatterDurationMs,
+    scatterForceMin = CONFIG.scatterForceMin,
+    scatterForceMax = CONFIG.scatterForceMax,
+    onWordCommit
   } = props;
 
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
@@ -122,6 +135,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   const [ready, setReady] = React.useState(false);
   const prefersReduced = usePrefersReducedMotion();
   const glyphs = React.useMemo(() => CONFIG.bgGlyphs.split(""), []);
+  const onWordCommitRef = React.useRef(onWordCommit);
+
+  React.useEffect(() => {
+    onWordCommitRef.current = onWordCommit;
+  }, [onWordCommit]);
 
   // 用于“在位重定向”与退出动画触发
   const retargetRef = React.useRef<null | ((newWord: string) => void)>(null);
@@ -158,18 +176,27 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     };
     let particles: P[] = [];
 
-    let phase: "drop" | "morph" | "exit" = "drop";
-    let wasMorph = false;
+    let phase: "drop" | "scatter" | "morph" | "exit" = "drop";
+    let dropElapsedMs = 0;
+    let scatterElapsedMs = 0;
     let morphElapsedMs = 0;
     let exitElapsedMs = 0;
-
-    let elapsedMs = 0, lastTs = 0;
+    let lastTs = 0;
+    let currentWord = word;
+    let pendingWord: string | null = null;
 
     const mouse = { x: -9999, y: -9999 };
     const smouse = { x: -9999, y: -9999 };
 
     const TRANS_DUR = CONFIG.transitionMs ?? 1200;
     const TRANS_JIT = CONFIG.transitionJitterMs ?? 0;
+    const SCATTER_DUR = Math.max(0, scatterDurationMs ?? 0);
+    const SCATTER_MIN = Math.max(0, scatterForceMin ?? 0);
+    const SCATTER_MAX_BASE =
+      typeof scatterForceMax === "number" && !Number.isNaN(scatterForceMax)
+        ? scatterForceMax
+        : SCATTER_MIN;
+    const SCATTER_MAX = Math.max(SCATTER_MIN + 0.01, SCATTER_MAX_BASE);
 
     function ensureTempSize() {
       const rect = canvas.getBoundingClientRect();
@@ -287,13 +314,40 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         pushOne(t);
       }
 
+      currentWord = text;
+      pendingWord = null;
+      phase = "drop";
+      dropElapsedMs = 0;
+      scatterElapsedMs = 0;
+      morphElapsedMs = 0;
+      exitElapsedMs = 0;
+
       readyRef.current = true;
       setReady(true);
+    }
+
+    function commitPendingWord() {
+      if (pendingWord != null) {
+        currentWord = pendingWord;
+        onWordCommitRef.current?.(pendingWord);
+        pendingWord = null;
+      }
+    }
+
+    function enterMorphPhase() {
+      if (phase === "morph") return;
+      phase = "morph";
+      morphElapsedMs = 0;
+      commitPendingWord();
     }
 
     /** ★ 在位重定向：仅更新目标，不清场、不重建循环 */
     function retargetToWord(newWord: string) {
       if (phase === "exit") return;
+      if (!newWord) return;
+      if (newWord === currentWord && pendingWord == null) return;
+
+      pendingWord = newWord;
       renderWordToTemp(newWord);
       const targets = sampleTargetsFromTemp(gap);
       const need = targets.length;
@@ -331,10 +385,31 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         particles[i].hrad = r0;
       }
 
-      // 进入 morph 并重置计时
-      phase = "morph";
-      wasMorph = false;
+      scatterElapsedMs = 0;
       morphElapsedMs = 0;
+
+      if (prefersReduced || SCATTER_DUR <= 0) {
+        for (const p of particles) {
+          p.vx = 0;
+          p.vy = 0;
+          p.x = p.tx;
+          p.y = p.ty;
+        }
+        enterMorphPhase();
+        return;
+      }
+
+      const forceSpan = Math.max(0, SCATTER_MAX - SCATTER_MIN);
+      for (const p of particles) {
+        const ang = Math.random() * Math.PI * 2;
+        const speed = forceSpan > 0 ? SCATTER_MIN + Math.random() * forceSpan : SCATTER_MIN;
+        p.vx = Math.cos(ang) * speed;
+        p.vy = Math.sin(ang) * speed - speed * 0.35;
+        p.x += (Math.random() - 0.5) * gap * 0.9;
+        p.y += (Math.random() - 0.5) * gap * 0.9;
+      }
+
+      phase = "scatter";
     }
 
     // 暴露给外层
@@ -344,6 +419,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       if (phase === "exit") return;
       phase = "exit";
       exitElapsedMs = 0;
+      pendingWord = null;
       for (const p of particles) {
         const ang = Math.random() * Math.PI * 2;
         const speed = 4 + Math.random() * 5;
@@ -368,7 +444,6 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       if (!lastTs) lastTs = ts;
       const dt = ts - lastTs; lastTs = ts;
       const fscale = Math.min(2, Math.max(0.5, dt / 16.6667));
-      elapsedMs += dt;
 
       const w = canvas.width / DPR, h = canvas.height / DPR;
 
@@ -377,16 +452,21 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       (ctx as any).globalAlpha = 1;
 
       if (!prefersReduced) {
-        if (phase !== "exit") {
-          // 阶段切换
-          const morphT = dropDurationMs + morphDelayMs;
-          const newPhase: "drop" | "morph" =
-            elapsedMs >= morphT ? "morph" : "drop";
-          if (newPhase === "morph" && !wasMorph) morphElapsedMs = 0;
-          if (newPhase !== "morph")             morphElapsedMs = 0;
-          wasMorph = newPhase === "morph";
-          phase = newPhase;
-        } else {
+        if (phase === "drop") {
+          dropElapsedMs += dt;
+          if (dropElapsedMs >= dropDurationMs + morphDelayMs) {
+            dropElapsedMs = dropDurationMs + morphDelayMs;
+            enterMorphPhase();
+          }
+        } else if (phase === "scatter") {
+          scatterElapsedMs += dt;
+          if (scatterElapsedMs >= SCATTER_DUR) {
+            scatterElapsedMs = SCATTER_DUR;
+            enterMorphPhase();
+          }
+        } else if (phase === "morph") {
+          morphElapsedMs += dt;
+        } else if (phase === "exit") {
           exitElapsedMs += dt;
         }
 
@@ -411,12 +491,32 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             if (p.y >= groundY - 0.5) {
               if (p.x < wall) { p.x = wall; p.vx = -p.vx * 0.7; }
               else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
-            } else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
+            } else if (p.x > w - wall) {
+              p.x = w - wall; p.vx = -p.vx * 0.7;
+            }
+          } else if (phase === "scatter") {
+            // ——在位爆散阶段——
+            p.vy += gravity * 0.08 * fscale;
+            p.vx *= 0.992;
+            p.vy *= 0.992;
+            p.x += p.vx * fscale;
+            p.y += p.vy * fscale;
+
+            const groundY = h - 10;
+            if (p.y > groundY) {
+              p.y = groundY; p.vy *= bounce * 0.65;
+              p.vx = p.vx * groundFriction + (Math.random() - 0.5) * 1.2;
+              if (Math.abs(p.vy) < 0.12) p.vy = 0;
+            }
+            const wall = 8;
+            if (p.y >= groundY - 0.5) {
+              if (p.x < wall) { p.x = wall; p.vx = -p.vx * 0.6; }
+              else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.6; }
+            } else if (p.x > w - wall) {
+              p.x = w - wall; p.vx = -p.vx * 0.6;
+            }
           } else if (phase === "morph") {
             // ——两阶段形态过渡——
-            morphElapsedMs += dt;
-
-            // 轻微“挤开”
             let pushX = 0, pushY = 0;
             const dxm = p.x - smouse.x, dym = p.y - smouse.y;
             const r = CONFIG.mouseRepelRadius, d = Math.hypot(dxm, dym);
@@ -472,6 +572,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           }
         }
       } else {
+        if (phase === "scatter") {
+          enterMorphPhase();
+        } else if (phase === "exit") {
+          exitElapsedMs += dt;
+        }
         for (const p of particles) {
           if (phase === "exit") {
             p.x += p.vx ?? 0;
@@ -496,7 +601,10 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         if (phase === "exit") {
           const fade = 1 - clamp01(exitElapsedMs / 1400);
           alpha = Math.max(0, fade);
-        } else if (wasMorph) {
+        } else if (phase === "scatter") {
+          const scatterT = SCATTER_DUR > 0 ? clamp01(scatterElapsedMs / SCATTER_DUR) : 1;
+          alpha = 0.75 + 0.25 * (1 - scatterT);
+        } else if (phase === "morph") {
           const tLocal = clamp01((morphElapsedMs - (p.d || 0)) / (CONFIG.transitionMs || 1200));
           alpha = 0.85 + 0.15 * easeInOut(tLocal);
         }
@@ -538,7 +646,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     dropDurationMs, morphDelayMs,
     launchXFrac, launchYFrac, launchRadiusFrac,
     launchSpeed, launchSpeedJitter, launchAngleDeg, launchSpreadDeg,
-    glyphSizePx, morphK, dockMaxOffset
+    glyphSizePx, morphK, dockMaxOffset,
+    scatterDurationMs, scatterForceMin, scatterForceMax
   ]);
 
   // ★ 当 word 变化时，触发“在位重定向”，产生两阶段的平滑过渡
@@ -574,6 +683,10 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   const [blogVisible, setBlogVisible] = React.useState(initialBlogView);
   const [heroRetired, setHeroRetired] = React.useState(initialBlogView);
   const initialBlogRef = React.useRef(initialBlogView);
+
+  const handleWordCommit = React.useCallback((nextWord: string) => {
+    setWord((prev) => (prev === nextWord ? prev : nextWord));
+  }, [setWord]);
 
   const router = useRouter();
 
@@ -644,6 +757,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
               launchSpreadDeg={CONFIG.launchSpreadDeg}
               morphK={morphK}
               dockMaxOffset={dockMaxOffset}
+              onWordCommit={handleWordCommit}
             />
           </div>
           <h1 className="sr-only" aria-live="polite">{word}</h1>
