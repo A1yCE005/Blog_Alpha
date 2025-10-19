@@ -59,8 +59,7 @@ const CONFIG = {
   idleGatherDelayMs: 520,
   idleGustStrength: 8.4,
   idleGustJitter: 2.6,
-  idleAmbientDrift: 0.16,
-  idleGustAngleDeg: -18
+  idleAmbientDrift: 0.16
 };
 
 function usePrefersReducedMotion() {
@@ -99,7 +98,6 @@ type WPProps = {
   idleGustStrength?: number;
   idleGustJitter?: number;
   idleAmbientDrift?: number;
-  idleGustAngleDeg?: number;
   onWordChange?: (word: string) => void;
 };
 
@@ -140,7 +138,6 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     idleGustStrength: idleGustStrengthProp,
     idleGustJitter: idleGustJitterProp,
     idleAmbientDrift: idleAmbientDriftProp,
-    idleGustAngleDeg: idleGustAngleDegProp,
     onWordChange
   } = props;
 
@@ -160,7 +157,6 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   const idleGustStrength = idleGustStrengthProp ?? CONFIG.idleGustStrength ?? 8.4;
   const idleGustJitter = idleGustJitterProp ?? CONFIG.idleGustJitter ?? 2.6;
   const idleAmbientDrift = idleAmbientDriftProp ?? CONFIG.idleAmbientDrift ?? 0.16;
-  const idleGustAngle = ((idleGustAngleDegProp ?? CONFIG.idleGustAngleDeg ?? -18) * Math.PI) / 180;
 
   const onWordChangeRef = React.useRef(onWordChange);
   React.useEffect(() => {
@@ -199,6 +195,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       d?: number;                 // 错峰延迟（ms）
       hox?: number; hoy?: number; // 汇聚方向单位向量
       hrad?: number;              // 汇聚初始半径
+      sdx?: number; sdy?: number; // 待机散射方向
     };
     let particles: P[] = [];
 
@@ -225,8 +222,6 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
     const TRANS_DUR = CONFIG.transitionMs ?? 1200;
     const TRANS_JIT = CONFIG.transitionJitterMs ?? 0;
-    const gustDirX = Math.cos(idleGustAngle);
-    const gustDirY = Math.sin(idleGustAngle);
     const gatherCompleteMs = TRANS_DUR + TRANS_JIT + 260;
 
     const canIdleCycle = () => idleWords.length > 1 && phase !== "exit" && !prefersReduced;
@@ -253,10 +248,14 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       wasMorph = false;
       morphElapsedMs = 0;
       for (const p of particles) {
-        const ang = idleGustAngle + (Math.random() - 0.5) * 0.9;
+        const ang = Math.random() * Math.PI * 2;
         const spd = idleGustStrength * (0.75 + Math.random() * 0.65);
-        p.vx = Math.cos(ang) * spd + (Math.random() - 0.5) * idleGustJitter;
-        p.vy = Math.sin(ang) * spd + (Math.random() - 0.5) * idleGustJitter * 0.6;
+        const dirX = Math.cos(ang);
+        const dirY = Math.sin(ang);
+        p.sdx = dirX;
+        p.sdy = dirY;
+        p.vx = dirX * spd + (Math.random() - 0.5) * idleGustJitter;
+        p.vy = dirY * spd + (Math.random() - 0.5) * idleGustJitter * 0.6;
       }
     }
 
@@ -401,7 +400,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           tx: t.x, ty: t.y,
           d: Math.random() * TRANS_JIT,
           c: glyphs[(Math.random() * glyphs.length) | 0],
-          hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0
+          hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0,
+          sdx: 0, sdy: 0
         });
       };
 
@@ -447,7 +447,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             vx: 0, vy: 0, tx: t.x, ty: t.y,
             d: Math.random() * TRANS_JIT,
             c: glyphs[(Math.random() * glyphs.length) | 0],
-            hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0
+            hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0,
+            sdx: 0, sdy: 0
           });
         }
       } else if (particles.length > need) {
@@ -465,6 +466,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         particles[i].hox = Math.cos(angR);
         particles[i].hoy = Math.sin(angR);
         particles[i].hrad = r0;
+        particles[i].sdx = 0;
+        particles[i].sdy = 0;
       }
 
       // 进入 morph 并重置计时
@@ -552,7 +555,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
               else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
             } else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
           } else if (phase === "morph") {
-            morphElapsedMs += dt;
+            const gatherSlow = idleState === "gathering" ? 0.72 : 1;
+            morphElapsedMs += dt * gatherSlow;
 
             let pushX = 0, pushY = 0;
             const dxm = p.x - smouse.x, dym = p.y - smouse.y;
@@ -599,8 +603,10 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
           } else if (phase === "idleScatter") {
             const swirl = Math.sin((elapsedMs + p.tx * 7 + p.ty * 5) * 0.003) * 0.35;
-            p.vx += (gustDirX * idleAmbientDrift + swirl * 0.08) * fscale;
-            p.vy += (gustDirY * idleAmbientDrift + swirl * 0.05 + gravity * 0.012) * fscale;
+            const dirX = p.sdx ?? 0;
+            const dirY = p.sdy ?? 0;
+            p.vx += (dirX * idleAmbientDrift + swirl * 0.08) * fscale;
+            p.vy += (dirY * idleAmbientDrift + swirl * 0.05 + gravity * 0.012) * fscale;
             p.vx *= 0.984;
             p.vy *= 0.984;
             p.x += p.vx * fscale;
@@ -732,7 +738,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     launchSpeed, launchSpeedJitter, launchAngleDeg, launchSpreadDeg,
     glyphSizePx, morphK, dockMaxOffset,
     idleWords, idleHold, idleScatter, idleGatherDelay,
-    idleGustStrength, idleGustJitter, idleAmbientDrift, idleGustAngle
+    idleGustStrength, idleGustJitter, idleAmbientDrift
   ]);
 
   // ★ 当 word 变化时，触发“在位重定向”，产生两阶段的平滑过渡
