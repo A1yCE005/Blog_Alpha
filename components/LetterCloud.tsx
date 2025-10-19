@@ -1085,6 +1085,8 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   const [word, setWord] = React.useState(CONFIG.word);
   const [gap, setGap] = React.useState(CONFIG.sampleGap);
   const [letterSpacing, setLetterSpacing] = React.useState(CONFIG.letterSpacing);
+  const [dropDurationMs, setDropDurationMs] = React.useState(CONFIG.dropDurationMs);
+  const [morphDelayMs, setMorphDelayMs] = React.useState(CONFIG.morphDelayMs);
   const [morphK, setMorphK] = React.useState<number>(0.14);
   const [dockMaxOffset, setDockMaxOffset] = React.useState<number>(10);
   const [glyphSizePx, setGlyphSizePx] = React.useState<number | undefined>(undefined);
@@ -1139,13 +1141,18 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     const mq = window.matchMedia("(max-width: 768px)");
     const applyResponsiveTuning = (isMobile: boolean) => {
       if (isMobile) {
-        setGap(CONFIG.sampleGap * 0.7);
-        setLetterSpacing(CONFIG.letterSpacing * 0.75);
-        setGlyphSizePx(Math.max(6, Math.floor(CONFIG.sampleGap * 1.4 * 0.8)));
+        const mobileGap = CONFIG.sampleGap * 0.55;
+        setGap(mobileGap);
+        setLetterSpacing(CONFIG.letterSpacing * 0.6);
+        setGlyphSizePx(Math.max(5, Math.round(mobileGap * 1.35)));
+        setDropDurationMs(Math.round(CONFIG.dropDurationMs * 0.82));
+        setMorphDelayMs(Math.round(CONFIG.morphDelayMs * 0.82));
       } else {
         setGap(CONFIG.sampleGap);
         setLetterSpacing(CONFIG.letterSpacing);
         setGlyphSizePx(undefined);
+        setDropDurationMs(CONFIG.dropDurationMs);
+        setMorphDelayMs(CONFIG.morphDelayMs);
       }
     };
 
@@ -1184,8 +1191,8 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
               gravity={CONFIG.gravity}
               bounce={CONFIG.bounce}
               groundFriction={CONFIG.groundFriction}
-              dropDurationMs={CONFIG.dropDurationMs}
-              morphDelayMs={CONFIG.morphDelayMs}
+              dropDurationMs={dropDurationMs}
+              morphDelayMs={morphDelayMs}
               launchXFrac={CONFIG.launchXFrac}
               launchYFrac={CONFIG.launchYFrac}
               launchRadiusFrac={CONFIG.launchRadiusFrac}
