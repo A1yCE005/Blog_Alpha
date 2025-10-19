@@ -173,12 +173,14 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     let exitElapsedMs = 0;
     let scatterElapsedMs = 0;
 
+    const transitionMs = CONFIG.transitionMs ?? 1200;
     const SCATTER = {
-      durationMs: Math.max(480, (CONFIG.transitionMs ?? 1200) * 0.75),
-      baseSpeed: 8.5,
-      jitter: 0.45,
-      upward: 1.8,
-      damping: 0.965
+      durationMs: Math.max(720, transitionMs * 0.95),
+      baseSpeed: 6.8,
+      jitter: 0.55,
+      upward: 1.35,
+      swirl: 3.2,
+      damping: 0.94
     };
 
     let elapsedMs = 0, lastTs = 0;
@@ -186,7 +188,6 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     const mouse = { x: -9999, y: -9999 };
     const smouse = { x: -9999, y: -9999 };
 
-    const TRANS_DUR = CONFIG.transitionMs ?? 1200;
     const TRANS_JIT = CONFIG.transitionJitterMs ?? 0;
 
     function ensureTempSize() {
@@ -374,8 +375,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         const ux = dx / dist;
         const uy = dy / dist;
         const speed = SCATTER.baseSpeed * (1 + (Math.random() - 0.5) * SCATTER.jitter);
-        p.vx = ux * speed + (Math.random() - 0.5) * 1.2;
-        p.vy = uy * speed - SCATTER.upward + (Math.random() - 0.5) * 1.2;
+        const tangentX = -uy;
+        const tangentY = ux;
+        const swirl = (Math.random() - 0.5) * SCATTER.swirl;
+        p.vx = ux * speed + tangentX * swirl + (Math.random() - 0.5) * 0.9;
+        p.vy = uy * speed + tangentY * swirl - SCATTER.upward + (Math.random() - 0.5) * 0.9;
       }
     }
 
@@ -516,8 +520,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             targetX += pushX; targetY += pushY;
 
             // 动态跟随强度（温和）
-            const baseK = 0.04;
-            const gainK = (typeof morphK === "number" ? morphK : 0.14);
+            const baseK = 0.03;
+            const gainK = (typeof morphK === "number" ? morphK : 0.1);
             const kNow = baseK + easeInOut(tLocal) * gainK;
 
             const dx = targetX - p.x, dy = targetY - p.y;
