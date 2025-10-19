@@ -406,12 +406,12 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
       const remapped: Array<{ x: number; y: number }> = [];
       if (source.length > desiredCount) {
-        const chosen: number[] = [];
-        const used = new Uint8Array(source.length);
-        const minDistSq = new Float64Array(source.length);
         const { width: canvasW, height: canvasH } = canvas;
         const cx = canvasW / (DPR * 2);
         const cy = canvasH / (DPR * 2);
+        const chosen: number[] = [];
+        const used = new Uint8Array(source.length);
+        const minDistSq = new Float64Array(source.length);
 
         let firstIdx = 0;
         let bestToCenter = Number.POSITIVE_INFINITY;
@@ -463,17 +463,76 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           updateMinDistances(nextIdx);
         }
 
-        for (let i = 0; i < chosen.length && remapped.length < desiredCount; i++) {
-          remapped.push({ x: source[chosen[i]].x, y: source[chosen[i]].y });
+        const seedX = new Float64Array(desiredCount);
+        const seedY = new Float64Array(desiredCount);
+        for (let i = 0; i < desiredCount; i++) {
+          const pick = source[chosen[i % chosen.length]];
+          seedX[i] = pick?.x ?? cx;
+          seedY[i] = pick?.y ?? cy;
         }
 
-        if (remapped.length < desiredCount) {
-          // fallback to random picks to fill any missing spots (should be rare)
-          while (remapped.length < desiredCount) {
-            const idx = Math.floor(Math.random() * source.length);
-            remapped.push({ x: source[idx].x, y: source[idx].y });
+        const assignments = new Int32Array(source.length);
+        assignments.fill(-1);
+
+        const iterations = 3;
+        for (let iter = 0; iter < iterations; iter++) {
+          const sumX = new Float64Array(desiredCount);
+          const sumY = new Float64Array(desiredCount);
+          const counts = new Uint32Array(desiredCount);
+
+          for (let si = 0; si < source.length; si++) {
+            const sx = source[si].x;
+            const sy = source[si].y;
+            let closest = 0;
+            let bestDist = Number.POSITIVE_INFINITY;
+            for (let ci = 0; ci < desiredCount; ci++) {
+              const dx = sx - seedX[ci];
+              const dy = sy - seedY[ci];
+              const dist = dx * dx + dy * dy;
+              if (dist < bestDist) {
+                bestDist = dist;
+                closest = ci;
+              }
+            }
+            assignments[si] = closest;
+            sumX[closest] += sx;
+            sumY[closest] += sy;
+            counts[closest] += 1;
+          }
+
+          for (let ci = 0; ci < desiredCount; ci++) {
+            if (counts[ci] > 0) {
+              seedX[ci] = sumX[ci] / counts[ci];
+              seedY[ci] = sumY[ci] / counts[ci];
+            }
           }
         }
+
+        const jitter = gap * 0.18;
+        for (let ci = 0; ci < desiredCount; ci++) {
+          let bestX = seedX[ci];
+          let bestY = seedY[ci];
+          let bestDist = Number.POSITIVE_INFINITY;
+          for (let si = 0; si < source.length; si++) {
+            if (assignments[si] !== ci) continue;
+            const sx = source[si].x;
+            const sy = source[si].y;
+            const dx = sx - seedX[ci];
+            const dy = sy - seedY[ci];
+            const dist = dx * dx + dy * dy;
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestX = sx;
+              bestY = sy;
+            }
+          }
+
+          remapped.push({
+            x: bestX + (Math.random() - 0.5) * jitter,
+            y: bestY + (Math.random() - 0.5) * jitter
+          });
+        }
+
         return remapped;
       }
 
