@@ -7,8 +7,10 @@ import { BlogMain } from "@/components/BlogMain";
 import type { PostSummary } from "@/lib/posts";
 
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
+const CAROUSEL_WORDS = ["Lighthouse", "Halo", "Hi"];
+
 const CONFIG = {
-  word: "Lighthosue",
+  word: CAROUSEL_WORDS[0],
   fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto",
   fontWeight: 800,
 
@@ -579,6 +581,47 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
 
   // 进入博客过渡控制
   const enterTimerRef = React.useRef<number | undefined>(undefined);
+  const carouselTimerRef = React.useRef<number | undefined>(undefined);
+  const carouselIndexRef = React.useRef(0);
+
+  React.useEffect(() => {
+    if (initialBlogView) return;
+    if (CAROUSEL_WORDS.length < 2) return;
+
+    const initialDelay =
+      (CONFIG.dropDurationMs ?? 0) +
+      (CONFIG.morphDelayMs ?? 0) +
+      (CONFIG.transitionMs ?? 0) +
+      1000;
+    const cycleDelay =
+      (CONFIG.transitionMs ?? 0) +
+      (CONFIG.transitionJitterMs ?? 0) +
+      1800;
+
+    let active = true;
+
+    const scheduleNext = (delay: number) => {
+      if (!active || hasEnteredBlog) return;
+      if (carouselTimerRef.current) window.clearTimeout(carouselTimerRef.current);
+      carouselTimerRef.current = window.setTimeout(() => {
+        if (!active || hasEnteredBlog) return;
+        carouselIndexRef.current = (carouselIndexRef.current + 1) % CAROUSEL_WORDS.length;
+        setWord(CAROUSEL_WORDS[carouselIndexRef.current]);
+        scheduleNext(cycleDelay);
+      }, delay) as unknown as number;
+    };
+
+    scheduleNext(initialDelay);
+
+    return () => {
+      active = false;
+      if (carouselTimerRef.current) {
+        window.clearTimeout(carouselTimerRef.current);
+        carouselTimerRef.current = undefined;
+      }
+      carouselIndexRef.current = 0;
+    };
+  }, [hasEnteredBlog, initialBlogView]);
 
 
 
