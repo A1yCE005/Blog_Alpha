@@ -165,6 +165,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       split?: number;             // 过渡阶段切分（用于轮播时的柔化）
     };
     let particles: P[] = [];
+    let pendingTrimCount: number | null = null;
+    let lastTargetCount = 0;
 
     let phase: "drop" | "morph" | "scatter" | "exit" = "drop";
     let wasMorph = false;
@@ -300,6 +302,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         pushOne(t);
       }
 
+      pendingTrimCount = null;
+      lastTargetCount = need;
       readyRef.current = true;
       setReady(true);
     }
@@ -313,11 +317,20 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       const w = canvas.width / DPR;
       const h = canvas.height / DPR;
 
+      const prevCount = lastTargetCount || particles.length || need || 1;
+      const densityRatio = clamp01(need / Math.max(1, prevCount));
+
+      if (pendingTrimCount != null && pendingTrimCount < particles.length) {
+        particles.length = pendingTrimCount;
+      }
+      pendingTrimCount = null;
+
       // 调整粒子数量
       const funnelRadius = CONFIG.funnelRadiusPx ?? 18;
+      const radiusScale = densityRatio < 1 ? 0.72 + densityRatio * 0.22 : 1;
       const baseSplit = clamp01(CONFIG.funnelSplit ?? 0.45);
-      const splitMin = Math.max(0.1, baseSplit * 0.35);
-      const splitMax = Math.min(0.5, splitMin + 0.16);
+      const splitMin = clamp01(0.06 + baseSplit * 0.07 + densityRatio * 0.12);
+      const splitMax = clamp01(Math.min(0.36, splitMin + 0.1 + densityRatio * 0.08));
 
       if (particles.length < need) {
         const jitter = gap * 1.6;
@@ -326,7 +339,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         for (let i = particles.length; i < need; i++) {
           const t = targets[i];
           const angR = Math.random() * Math.PI * 2;
-          const r0   = funnelRadius * (0.22 + Math.random() * 0.38);
+          const r0   = funnelRadius * radiusScale * (0.2 + Math.random() * 0.32);
           const angScatter = Math.random() * Math.PI * 2;
           const spScatter = SCATTER_SPEED * (0.7 + Math.random() * 0.6);
           particles.push({
@@ -342,7 +355,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           });
         }
       } else if (particles.length > need) {
-        particles.length = need;
+        pendingTrimCount = need;
       }
 
       const scatterJitter = gap * 0.9;
@@ -354,7 +367,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         particles[i].d  = Math.random() * TRANS_JIT;
 
         const angR = Math.random() * Math.PI * 2;
-        const r0   = funnelRadius * (0.22 + Math.random() * 0.38);
+        const r0   = funnelRadius * radiusScale * (0.2 + Math.random() * 0.32);
         particles[i].hox = Math.cos(angR);
         particles[i].hoy = Math.sin(angR);
         particles[i].hrad = r0;
@@ -374,6 +387,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         const spScatter = SCATTER_SPEED * (0.6 + Math.random() * 0.5);
         particles[i].vx = Math.cos(angScatter) * spScatter;
         particles[i].vy = Math.sin(angScatter) * spScatter * 0.75 - 0.4;
+        const away = Math.max(0.2, 0.6 - densityRatio * 0.3);
+        particles[i].vx += Math.cos(angScatter) * SCATTER_SPEED * away * 0.35;
+        particles[i].vy += Math.sin(angScatter) * SCATTER_SPEED * away * 0.35;
         particles[i].x += (Math.random() - 0.5) * scatterJitter;
         particles[i].y += (Math.random() - 0.5) * scatterJitter;
       }
@@ -384,6 +400,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       wasMorph = false;
       morphElapsedMs = 0;
       elapsedMs = dropDurationMs + morphDelayMs;
+
+      lastTargetCount = need;
     }
 
     // 暴露给外层
@@ -436,6 +454,10 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             for (const p of particles) {
               p.vx *= 0.25;
               p.vy *= 0.25;
+            }
+            if (pendingTrimCount != null) {
+              particles.length = pendingTrimCount;
+              pendingTrimCount = null;
             }
             phase = "morph";
           }
@@ -558,6 +580,10 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         }
         if (phase === "exit") {
           exitElapsedMs += dt;
+        }
+        if (pendingTrimCount != null) {
+          particles.length = pendingTrimCount;
+          pendingTrimCount = null;
         }
       }
 
