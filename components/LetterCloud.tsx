@@ -7,8 +7,10 @@ import { BlogMain } from "@/components/BlogMain";
 import type { PostSummary } from "@/lib/posts";
 
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
+const CAROUSEL_WORDS = ["Lighthouse", "Halo", "Hi"] as const;
+
 const CONFIG = {
-  word: "Lighthosue",
+  word: CAROUSEL_WORDS[0],
   fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto",
   fontWeight: 800,
 
@@ -84,9 +86,14 @@ type WPProps = {
   glyphSizePx?: number;            // 粒子字大小（px）
 };
 
+type CycleOptions = {
+  reentryDelayMs?: number;
+};
+
 export type WordParticlesHandle = {
   retarget(word: string): void;
   triggerExit(): void;
+  cycleTo(word: string, options?: CycleOptions): void;
 };
 
 const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function WordParticles(props, ref) {
@@ -120,12 +127,14 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   const tempRef = React.useRef<HTMLCanvasElement | null>(null);
   const readyRef = React.useRef(false);
   const [ready, setReady] = React.useState(false);
+  const skipNextRetargetRef = React.useRef(false);
   const prefersReduced = usePrefersReducedMotion();
   const glyphs = React.useMemo(() => CONFIG.bgGlyphs.split(""), []);
 
   // 用于“在位重定向”与退出动画触发
   const retargetRef = React.useRef<null | ((newWord: string) => void)>(null);
   const exitTriggerRef = React.useRef<() => void>(() => {});
+  const cycleRef = React.useRef<(word: string, options?: CycleOptions) => void>(() => {});
 
   React.useImperativeHandle(
     ref,
@@ -135,6 +144,10 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       },
       triggerExit() {
         exitTriggerRef.current?.();
+      },
+      cycleTo(newWord: string, options?: CycleOptions) {
+        skipNextRetargetRef.current = true;
+        cycleRef.current?.(newWord, options);
       }
     }),
     []
@@ -147,6 +160,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     const tctx = temp.getContext("2d")!;
     const DPR = Math.min(2, window.devicePixelRatio || 1);
 
+    let currentWord = word;
+
     // 内部状态（不触发 React 渲染）
     let raf = 0;
     type P = {
@@ -157,6 +172,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       hrad?: number;              // 汇聚初始半径
     };
     let particles: P[] = [];
+    let pendingCycleWord: string | null = null;
+    let cycleTimer: number | null = null;
 
     let phase: "drop" | "morph" | "exit" = "drop";
     let wasMorph = false;
@@ -294,6 +311,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     /** ★ 在位重定向：仅更新目标，不清场、不重建循环 */
     function retargetToWord(newWord: string) {
       if (phase === "exit") return;
+      currentWord = newWord;
       renderWordToTemp(newWord);
       const targets = sampleTargetsFromTemp(gap);
       const need = targets.length;
@@ -340,8 +358,19 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     // 暴露给外层
     retargetRef.current = retargetToWord;
 
-    function triggerExit() {
-      if (phase === "exit") return;
+    function restartToWord(nextWord: string) {
+      currentWord = nextWord;
+      pendingCycleWord = null;
+      phase = "drop";
+      elapsedMs = 0;
+      morphElapsedMs = 0;
+      wasMorph = false;
+      exitElapsedMs = 0;
+      lastTs = 0;
+      buildScene(nextWord);
+    }
+
+    function scatterForExit() {
       phase = "exit";
       exitElapsedMs = 0;
       for (const p of particles) {
@@ -352,7 +381,31 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       }
     }
 
+    function triggerExit() {
+      pendingCycleWord = null;
+      if (cycleTimer != null) {
+        window.clearTimeout(cycleTimer);
+        cycleTimer = null;
+      }
+      scatterForExit();
+    }
+
     exitTriggerRef.current = triggerExit;
+
+    cycleRef.current = (nextWord: string, options?: CycleOptions) => {
+      pendingCycleWord = nextWord;
+      scatterForExit();
+      const delay = Math.max(0, options?.reentryDelayMs ?? 1600);
+      if (cycleTimer != null) {
+        window.clearTimeout(cycleTimer);
+      }
+      skipNextRetargetRef.current = true;
+      cycleTimer = window.setTimeout(() => {
+        if (pendingCycleWord == null) return;
+        restartToWord(pendingCycleWord);
+        cycleTimer = null;
+      }, delay) as unknown as number;
+    };
 
     function resize() {
       const rect = canvas.getBoundingClientRect();
@@ -360,7 +413,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       const h = Math.max(1, Math.floor(rect.height * DPR));
       canvas.width = w; canvas.height = h;
       (ctx as any).setTransform(DPR, 0, 0, DPR, 0, 0);
-      buildScene(word);
+      buildScene(currentWord);
     }
 
     function step(ts?: number) {
@@ -529,6 +582,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       ro.disconnect();
       canvas.removeEventListener("mousemove", onMove);
       canvas.removeEventListener("mouseleave", onLeave);
+      if (cycleTimer != null) {
+        window.clearTimeout(cycleTimer);
+      }
     };
     // 注意：不要把 word 放进依赖，否则切换时会重建动画导致闪烁
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -543,6 +599,10 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
   // ★ 当 word 变化时，触发“在位重定向”，产生两阶段的平滑过渡
   React.useEffect(() => {
+    if (skipNextRetargetRef.current) {
+      skipNextRetargetRef.current = false;
+      return;
+    }
     retargetRef.current?.(word);
   }, [word]);
 
@@ -574,6 +634,11 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   const [blogVisible, setBlogVisible] = React.useState(initialBlogView);
   const [heroRetired, setHeroRetired] = React.useState(initialBlogView);
   const initialBlogRef = React.useRef(initialBlogView);
+  const carouselWords = React.useMemo(() => Array.from(CAROUSEL_WORDS), []);
+  const carouselIndexRef = React.useRef(Math.max(0, carouselWords.indexOf(CONFIG.word)));
+  const carouselStartedRef = React.useRef(false);
+  const carouselTimerRef = React.useRef<number | null>(null);
+  const prefersReduced = usePrefersReducedMotion();
 
   const router = useRouter();
 
@@ -584,6 +649,12 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
 
   React.useEffect(() => {
     if (!hasEnteredBlog) return;
+    carouselIndexRef.current = Math.max(0, carouselWords.indexOf(CONFIG.word));
+    if (carouselTimerRef.current != null) {
+      window.clearTimeout(carouselTimerRef.current);
+      carouselTimerRef.current = null;
+    }
+    carouselStartedRef.current = false;
     setWord(CONFIG.word);
 
     if (initialBlogRef.current) {
@@ -600,13 +671,71 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     return () => {
       if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
     };
-  }, [hasEnteredBlog]);
+  }, [hasEnteredBlog, carouselWords]);
 
   React.useEffect(() => {
     return () => {
       if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
+      if (carouselTimerRef.current != null) {
+        window.clearTimeout(carouselTimerRef.current);
+        carouselTimerRef.current = null;
+      }
     };
   }, []);
+
+  React.useEffect(() => {
+    const idx = carouselWords.indexOf(word);
+    if (idx >= 0) {
+      carouselIndexRef.current = idx;
+    }
+  }, [word, carouselWords]);
+
+  React.useEffect(() => {
+    if (prefersReduced) {
+      if (carouselTimerRef.current != null) {
+        window.clearTimeout(carouselTimerRef.current);
+        carouselTimerRef.current = null;
+      }
+      carouselStartedRef.current = false;
+      return;
+    }
+    if (hasEnteredBlog || heroRetired) {
+      if (carouselTimerRef.current != null) {
+        window.clearTimeout(carouselTimerRef.current);
+        carouselTimerRef.current = null;
+      }
+      carouselStartedRef.current = false;
+      return;
+    }
+    if (!particlesRef.current) return;
+    if (carouselWords.length <= 1) return;
+
+    const initialDelay = CONFIG.dropDurationMs + CONFIG.morphDelayMs + 1600;
+    const cycleDelay = (CONFIG.transitionMs ?? 1200) + 2200;
+    const delay = carouselStartedRef.current ? cycleDelay : initialDelay;
+
+    if (carouselTimerRef.current != null) {
+      window.clearTimeout(carouselTimerRef.current);
+    }
+
+    carouselTimerRef.current = window.setTimeout(() => {
+      carouselTimerRef.current = null;
+      const nextIndex = (carouselIndexRef.current + 1) % carouselWords.length;
+      const nextWord = carouselWords[nextIndex];
+      carouselIndexRef.current = nextIndex;
+      particlesRef.current?.cycleTo(nextWord, { reentryDelayMs: 1700 });
+      setWord(nextWord);
+    }, delay) as unknown as number;
+
+    carouselStartedRef.current = true;
+
+    return () => {
+      if (carouselTimerRef.current != null) {
+        window.clearTimeout(carouselTimerRef.current);
+        carouselTimerRef.current = null;
+      }
+    };
+  }, [word, hasEnteredBlog, heroRetired, carouselWords, prefersReduced]);
 
   const handleEnterBlog = React.useCallback(() => {
     if (hasEnteredBlog) return;
