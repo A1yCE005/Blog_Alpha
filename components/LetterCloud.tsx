@@ -45,6 +45,9 @@ const CONFIG = {
   // 两形态之间的总体过渡
   transitionMs: 1200,
   transitionJitterMs: 180,
+  retargetScatterMs: 720,
+  retargetScatterSpeed: 9.5,
+  retargetScatterDamp: 0.85,
 
   funnelSplit: 0.45,       // 第一阶段所占比例（0..1）
   funnelXFrac: 0.50,       // 汇聚点 X（相对宽度 0..1）
@@ -155,6 +158,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       d?: number;                 // 错峰延迟（ms）
       hox?: number; hoy?: number; // 汇聚方向单位向量
       hrad?: number;              // 汇聚初始半径
+      svx?: number; svy?: number; // 重定向喷散速度
     };
     let particles: P[] = [];
 
@@ -162,6 +166,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     let wasMorph = false;
     let morphElapsedMs = 0;
     let exitElapsedMs = 0;
+    const SCATTER_MS = CONFIG.retargetScatterMs ?? 720;
+    let scatterElapsedMs = SCATTER_MS;
 
     let elapsedMs = 0, lastTs = 0;
 
@@ -331,6 +337,25 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         particles[i].hrad = r0;
       }
 
+      // 预先计算重定向喷散速度
+      const w = canvas.width / DPR;
+      const h = canvas.height / DPR;
+      const hubX = w * (CONFIG.funnelXFrac ?? 0.5);
+      const hubY = h * (CONFIG.funnelYFrac ?? 0.5);
+      const baseSpeed = CONFIG.retargetScatterSpeed ?? 9.5;
+      for (const p of particles) {
+        const dx = p.x - hubX;
+        const dy = p.y - hubY;
+        const dist = Math.max(1e-3, Math.hypot(dx, dy));
+        const dirX = dx / dist;
+        const dirY = dy / dist;
+        const spray = 0.8 + Math.random() * 0.8;
+        p.svx = dirX * baseSpeed * spray + (Math.random() - 0.5) * 2.2;
+        p.svy = dirY * baseSpeed * spray + (Math.random() - 0.5) * 2.2 - 0.6;
+      }
+
+      scatterElapsedMs = 0;
+
       // 进入 morph 并重置计时
       phase = "morph";
       wasMorph = false;
@@ -383,8 +408,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           const newPhase: "drop" | "morph" =
             elapsedMs >= morphT ? "morph" : "drop";
           if (newPhase === "morph" && !wasMorph) morphElapsedMs = 0;
-          if (newPhase !== "morph")             morphElapsedMs = 0;
-          wasMorph = newPhase === "morph";
+          if (newPhase !== "morph") {
+            morphElapsedMs = 0;
+            scatterElapsedMs = SCATTER_MS;
+          }
+          wasMorph = newPhase === "morph" && scatterElapsedMs >= SCATTER_MS;
           phase = newPhase;
         } else {
           exitElapsedMs += dt;
@@ -394,6 +422,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         const a = Math.min(0.9, CONFIG.mouseSmooth * fscale);
         smouse.x += (mouse.x - smouse.x) * a;
         smouse.y += (mouse.y - smouse.y) * a;
+
+        let scatterActive = phase === "morph" && scatterElapsedMs < SCATTER_MS;
+        let firstMorphStep = true;
 
         for (const p of particles) {
           if (phase === "drop") {
@@ -413,8 +444,26 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
               else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
             } else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
           } else if (phase === "morph") {
-            // ——两阶段形态过渡——
-            morphElapsedMs += dt;
+            if (firstMorphStep) {
+              if (scatterActive) {
+                scatterElapsedMs = Math.min(SCATTER_MS, scatterElapsedMs + dt);
+                const damp = Math.pow(CONFIG.retargetScatterDamp ?? 0.85, fscale);
+                for (const p2 of particles) {
+                  const svx = p2.svx ?? 0;
+                  const svy = p2.svy ?? 0;
+                  p2.x += svx * fscale;
+                  p2.y += svy * fscale;
+                  p2.svx = svx * damp;
+                  p2.svy = svy * damp + gravity * 0.06 * fscale * 0.2;
+                }
+                scatterActive = scatterElapsedMs < SCATTER_MS;
+              } else {
+                morphElapsedMs += dt;
+              }
+              firstMorphStep = false;
+            }
+
+            if (scatterActive) continue;
 
             // 轻微“挤开”
             let pushX = 0, pushY = 0;
@@ -462,6 +511,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             p.x += dx * tt; p.y += dy * tt;
 
             if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
+
+            if (typeof p.svx === "number") p.svx = 0;
+            if (typeof p.svy === "number") p.svy = 0;
           } else {
             // ——退出阶段：向四周喷散 + 淡出——
             p.vy += gravity * 0.04 * fscale;
