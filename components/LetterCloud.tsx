@@ -231,6 +231,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     let exitElapsedMs = 0;
 
     let elapsedMs = 0, lastTs = 0;
+    const BASE_FRAME_MS = 1000 / 60;
+    const MAX_FRAME_SLICE_MS = BASE_FRAME_MS * 2;
 
     let currentWord = word;
     type IdleState = "inactive" | "waiting" | "gust" | "awaitGather" | "gathering";
@@ -806,18 +808,12 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       buildScene(word);
     }
 
-    function step(ts?: number) {
-      if (ts == null || Number.isNaN(ts)) ts = performance.now();
-      if (!lastTs) lastTs = ts;
-      const dt = ts - lastTs; lastTs = ts;
-      const fscale = Math.min(2, Math.max(0.5, dt / 16.6667));
-      elapsedMs += dt;
-
-      const w = canvas.width / DPR, h = canvas.height / DPR;
-
-      // 清除上一帧，保留透明背景
-      ctx.clearRect(0, 0, w, h);
-      (ctx as any).globalAlpha = 1;
+    function advanceFrame(frameDt: number, w: number, h: number) {
+      if (frameDt <= 0) {
+        return;
+      }
+      const fscale = Math.min(2, Math.max(0.5, frameDt / BASE_FRAME_MS));
+      elapsedMs += frameDt;
 
       if (!prefersReduced) {
         const prevPhase = phase;
@@ -832,7 +828,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             markGatherStart(!introSettled && idleState === "inactive");
           }
         } else if (phase === "exit") {
-          exitElapsedMs += dt;
+          exitElapsedMs += frameDt;
           wasMorph = false;
         } else {
           wasMorph = false;
@@ -859,7 +855,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
               else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
             } else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
           } else if (phase === "morph") {
-            morphElapsedMs += dt;
+            morphElapsedMs += frameDt;
 
             let pushX = 0, pushY = 0;
             const dxm = p.x - smouse.x, dym = p.y - smouse.y;
@@ -916,7 +912,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             const kNow = baseK + easeInOut(tLocal) * gainK;
 
             const dx = targetX - p.x, dy = targetY - p.y;
-            const tt = 1 - Math.pow(1 - kNow, Math.max(1, dt / 16.67));
+            const tt = 1 - Math.pow(1 - kNow, Math.max(1, frameDt / 16.67));
             p.x += dx * tt; p.y += dy * tt;
 
             if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
@@ -951,17 +947,17 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           }
 
           if (idleState === "waiting") {
-            idleHoldElapsed += dt;
+            idleHoldElapsed += frameDt;
             if (idleHoldElapsed >= idleHold) {
               startIdleScatter();
             }
           } else if (idleState === "gust") {
-            idleScatterElapsed += dt;
+            idleScatterElapsed += frameDt;
             if (idleScatterElapsed >= idleScatter) {
               scheduleIdleGather();
             }
           } else if (idleState === "awaitGather") {
-            idleGatherDelayLeft -= dt;
+            idleGatherDelayLeft -= frameDt;
             if (idleGatherDelayLeft <= 0) {
               beginIdleGather();
             }
@@ -995,8 +991,12 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           }
         }
       }
+    }
 
-      // 绘制粒子字符
+    function renderFrame(w: number, h: number) {
+      ctx.clearRect(0, 0, w, h);
+      (ctx as any).globalAlpha = 1;
+
       ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = CONFIG.colorFg;
       const minDim = Math.min(canvas.width, canvas.height) / DPR;
       const autoFs = Math.max(8, Math.floor(gap * 1.4));
@@ -1005,7 +1005,6 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       ctx.font = `700 ${fs}px ${CONFIG.fontFamily}`;
 
       for (const p of particles) {
-        // 轻微淡入
         let alpha = 1;
         if (phase === "exit") {
           const fade = 1 - clamp01(exitElapsedMs / 1400);
@@ -1022,6 +1021,26 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         ctx.fillText(p.c, p.x, p.y);
       }
       (ctx as any).globalAlpha = 1;
+    }
+
+    function step(ts?: number) {
+      if (ts == null || Number.isNaN(ts)) ts = performance.now();
+      if (!lastTs) lastTs = ts;
+      let dt = ts - lastTs;
+      if (!Number.isFinite(dt) || dt < 0) dt = 0;
+      if (dt > 250) dt = 250;
+      lastTs = ts;
+
+      const w = canvas.width / DPR, h = canvas.height / DPR;
+
+      let remaining = dt;
+      while (remaining > 0) {
+        const slice = Math.min(remaining, MAX_FRAME_SLICE_MS);
+        advanceFrame(slice, w, h);
+        remaining -= slice;
+      }
+
+      renderFrame(w, h);
 
       raf = requestAnimationFrame(step as FrameRequestCallback);
     }
@@ -1084,6 +1103,9 @@ type FullscreenHomeProps = {
 export default function FullscreenHome({ posts, initialBlogView = false }: FullscreenHomeProps) {
   const [word, setWord] = React.useState(CONFIG.word);
   const [gap, setGap] = React.useState(CONFIG.sampleGap);
+  const [letterSpacing, setLetterSpacing] = React.useState(CONFIG.letterSpacing);
+  const [dropDurationMs, setDropDurationMs] = React.useState(CONFIG.dropDurationMs);
+  const [morphDelayMs, setMorphDelayMs] = React.useState(CONFIG.morphDelayMs);
   const [morphK, setMorphK] = React.useState<number>(0.14);
   const [dockMaxOffset, setDockMaxOffset] = React.useState<number>(10);
   const [glyphSizePx, setGlyphSizePx] = React.useState<number | undefined>(undefined);
@@ -1134,6 +1156,42 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     particlesRef.current?.triggerExit();
   }, [hasEnteredBlog, router]);
 
+  React.useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const applyResponsiveTuning = (isMobile: boolean) => {
+      if (isMobile) {
+        const mobileGap = CONFIG.sampleGap * 0.55;
+        setGap(mobileGap);
+        setLetterSpacing(CONFIG.letterSpacing * 0.6);
+        setGlyphSizePx(Math.max(5, Math.round(mobileGap * 1.35)));
+        setDropDurationMs(Math.round(CONFIG.dropDurationMs * 0.82));
+        setMorphDelayMs(Math.round(CONFIG.morphDelayMs * 0.82));
+      } else {
+        setGap(CONFIG.sampleGap);
+        setLetterSpacing(CONFIG.letterSpacing);
+        setGlyphSizePx(undefined);
+        setDropDurationMs(CONFIG.dropDurationMs);
+        setMorphDelayMs(CONFIG.morphDelayMs);
+      }
+    };
+
+    applyResponsiveTuning(mq.matches);
+    const listener = (event: MediaQueryListEvent) => applyResponsiveTuning(event.matches);
+
+    let cleanup: (() => void) | undefined;
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", listener);
+      cleanup = () => mq.removeEventListener("change", listener);
+    } else if (typeof mq.addListener === "function") {
+      mq.addListener(listener);
+      cleanup = () => mq.removeListener(listener);
+    }
+
+    return () => {
+      cleanup?.();
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-black text-zinc-100">
       {!heroRetired && (
@@ -1147,13 +1205,13 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
               ref={particlesRef}
               word={word}
               gap={gap}
-              letterSpacing={CONFIG.letterSpacing}
+              letterSpacing={letterSpacing}
               glyphSizePx={glyphSizePx}
               gravity={CONFIG.gravity}
               bounce={CONFIG.bounce}
               groundFriction={CONFIG.groundFriction}
-              dropDurationMs={CONFIG.dropDurationMs}
-              morphDelayMs={CONFIG.morphDelayMs}
+              dropDurationMs={dropDurationMs}
+              morphDelayMs={morphDelayMs}
               launchXFrac={CONFIG.launchXFrac}
               launchYFrac={CONFIG.launchYFrac}
               launchRadiusFrac={CONFIG.launchRadiusFrac}
