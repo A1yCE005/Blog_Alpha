@@ -202,6 +202,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       hrad?: number;              // 汇聚初始半径
     };
     let particles: P[] = [];
+    let baseParticleCount = 0;
 
     type Phase = "drop" | "morph" | "idleScatter" | "exit";
     let phase: Phase = "drop";
@@ -378,6 +379,69 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       return targets;
     }
 
+    function remapTargets(
+      source: Array<{ x: number; y: number }>,
+      desiredCount: number
+    ) {
+      if (desiredCount <= 0) {
+        return [];
+      }
+      if (source.length === 0) {
+        const fallback: Array<{ x: number; y: number }> = [];
+        const cx = canvas.width / (DPR * 2);
+        const cy = canvas.height / (DPR * 2);
+        for (let i = 0; i < desiredCount; i++) {
+          const ang = (i / Math.max(1, desiredCount)) * Math.PI * 2;
+          const rad = (CONFIG.funnelRadiusPx ?? 18) * 0.6;
+          fallback.push({
+            x: cx + Math.cos(ang) * rad,
+            y: cy + Math.sin(ang) * rad
+          });
+        }
+        return fallback;
+      }
+      if (source.length === desiredCount) {
+        return source;
+      }
+
+      const remapped: Array<{ x: number; y: number }> = [];
+      if (source.length > desiredCount) {
+        const step = source.length / desiredCount;
+        let cursor = Math.random() * Math.min(step, 1);
+        for (let i = 0; i < desiredCount; i++, cursor += step) {
+          const idx = Math.min(source.length - 1, Math.floor(cursor));
+          const picked = source[idx];
+          remapped.push({ x: picked.x, y: picked.y });
+        }
+        return remapped;
+      }
+
+      const repeats = Math.floor(desiredCount / source.length);
+      const remainder = desiredCount % source.length;
+      for (let r = 0; r < repeats; r++) {
+        for (let i = 0; i < source.length; i++) {
+          const base = source[i];
+          remapped.push({
+            x: base.x + (Math.random() - 0.5) * gap * 0.35,
+            y: base.y + (Math.random() - 0.5) * gap * 0.35
+          });
+        }
+      }
+      if (remainder > 0) {
+        const step = source.length / remainder;
+        let cursor = 0;
+        for (let i = 0; i < remainder; i++, cursor += step) {
+          const idx = Math.min(source.length - 1, Math.floor(cursor));
+          const base = source[idx];
+          remapped.push({
+            x: base.x + (Math.random() - 0.5) * gap * 0.35,
+            y: base.y + (Math.random() - 0.5) * gap * 0.35
+          });
+        }
+      }
+      return remapped.slice(0, desiredCount);
+    }
+
     /** 首次构建场景（含首轮 drop） */
     function buildScene(text: string) {
       currentWord = text;
@@ -427,6 +491,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         pushOne(t);
       }
 
+      baseParticleCount = particles.length;
       readyRef.current = true;
       setReady(true);
     }
@@ -452,7 +517,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
       renderWordToTemp(newWord);
       const targets = sampleTargetsFromTemp(gap);
-      const need = targets.length;
+      const currentCount = particles.length || baseParticleCount || targets.length;
+      const mappedTargets = remapTargets(targets, currentCount);
 
       if (wasIdleCycle) {
         activeTransitionMs = idleGatherTransitionMs;
@@ -464,30 +530,12 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         updateGatherTiming();
       }
 
-      // 调整粒子数量
-      if (particles.length < need) {
-        const jitter = gap * 1.2;
-        for (let i = particles.length; i < need; i++) {
-          const t = targets[i];
-          const angR = Math.random() * Math.PI * 2;
-          const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
-          particles.push({
-            x: t.x + (Math.random() - 0.5) * jitter,
-            y: t.y + (Math.random() - 0.5) * jitter,
-            vx: 0, vy: 0, tx: t.x, ty: t.y,
-            d: Math.random() * activeTransitionJitter,
-            c: glyphs[(Math.random() * glyphs.length) | 0],
-            hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0
-          });
-        }
-      } else if (particles.length > need) {
-        particles = particles.slice(0, need);
-      }
-
       // 写入新目标 & 刷新错峰与汇聚方向
-      for (let i = 0; i < need; i++) {
-        particles[i].tx = targets[i].x;
-        particles[i].ty = targets[i].y;
+      const count = Math.min(particles.length, mappedTargets.length);
+      for (let i = 0; i < count; i++) {
+        const target = mappedTargets[i];
+        particles[i].tx = target.x;
+        particles[i].ty = target.y;
         particles[i].d  = Math.random() * activeTransitionJitter;
 
         const angR = Math.random() * Math.PI * 2;
@@ -495,6 +543,19 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         particles[i].hox = Math.cos(angR);
         particles[i].hoy = Math.sin(angR);
         particles[i].hrad = r0;
+      }
+
+      if (particles.length > count) {
+        for (let i = count; i < particles.length; i++) {
+          const angR = Math.random() * Math.PI * 2;
+          const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
+          particles[i].tx = canvas.width / (DPR * 2);
+          particles[i].ty = canvas.height / (DPR * 2);
+          particles[i].d = Math.random() * activeTransitionJitter;
+          particles[i].hox = Math.cos(angR);
+          particles[i].hoy = Math.sin(angR);
+          particles[i].hrad = r0;
+        }
       }
 
       // 进入 morph 并重置计时
