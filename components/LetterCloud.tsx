@@ -809,8 +809,16 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     function step(ts?: number) {
       if (ts == null || Number.isNaN(ts)) ts = performance.now();
       if (!lastTs) lastTs = ts;
-      const dt = ts - lastTs; lastTs = ts;
-      const fscale = Math.min(2, Math.max(0.5, dt / 16.6667));
+      let dt = ts - lastTs;
+      lastTs = ts;
+      if (!Number.isFinite(dt) || dt <= 0) {
+        dt = 16.6667;
+      }
+      // Allow slower devices (e.g. mobile Safari) to keep pace by letting the
+      // integrator scale beyond the previous 2× cap while still guarding
+      // against runaway values.
+      const dtScale = dt / 16.6667;
+      const fscale = Math.max(0.45, Math.min(6, dtScale));
       elapsedMs += dt;
 
       const w = canvas.width / DPR, h = canvas.height / DPR;
@@ -1084,6 +1092,7 @@ type FullscreenHomeProps = {
 export default function FullscreenHome({ posts, initialBlogView = false }: FullscreenHomeProps) {
   const [word, setWord] = React.useState(CONFIG.word);
   const [gap, setGap] = React.useState(CONFIG.sampleGap);
+  const [letterSpacing, setLetterSpacing] = React.useState(CONFIG.letterSpacing);
   const [morphK, setMorphK] = React.useState<number>(0.14);
   const [dockMaxOffset, setDockMaxOffset] = React.useState<number>(10);
   const [glyphSizePx, setGlyphSizePx] = React.useState<number | undefined>(undefined);
@@ -1134,6 +1143,38 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     particlesRef.current?.triggerExit();
   }, [hasEnteredBlog, router]);
 
+  React.useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const applyResponsiveTuning = (isMobile: boolean) => {
+      if (isMobile) {
+        const mobileGap = CONFIG.sampleGap * 0.55;
+        setGap(mobileGap);
+        setLetterSpacing(CONFIG.letterSpacing * 0.6);
+        setGlyphSizePx(Math.max(5, Math.round(mobileGap * 1.35)));
+      } else {
+        setGap(CONFIG.sampleGap);
+        setLetterSpacing(CONFIG.letterSpacing);
+        setGlyphSizePx(undefined);
+      }
+    };
+
+    applyResponsiveTuning(mq.matches);
+    const listener = (event: MediaQueryListEvent) => applyResponsiveTuning(event.matches);
+
+    let cleanup: (() => void) | undefined;
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", listener);
+      cleanup = () => mq.removeEventListener("change", listener);
+    } else if (typeof mq.addListener === "function") {
+      mq.addListener(listener);
+      cleanup = () => mq.removeListener(listener);
+    }
+
+    return () => {
+      cleanup?.();
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-black text-zinc-100">
       {!heroRetired && (
@@ -1147,13 +1188,11 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
               ref={particlesRef}
               word={word}
               gap={gap}
-              letterSpacing={CONFIG.letterSpacing}
+              letterSpacing={letterSpacing}
               glyphSizePx={glyphSizePx}
               gravity={CONFIG.gravity}
               bounce={CONFIG.bounce}
               groundFriction={CONFIG.groundFriction}
-              dropDurationMs={CONFIG.dropDurationMs}
-              morphDelayMs={CONFIG.morphDelayMs}
               launchXFrac={CONFIG.launchXFrac}
               launchYFrac={CONFIG.launchYFrac}
               launchRadiusFrac={CONFIG.launchRadiusFrac}
