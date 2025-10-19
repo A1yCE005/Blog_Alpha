@@ -14,7 +14,7 @@ const CONFIG = {
 
   // 版面与取样
   wordScale: 0.60,       // 词形占 min(width,height) 的比例（用于取样目标点）
-  sampleGap: 5.2,          // 取样间距（越小点越多）
+  sampleGap: 7,          // 取样间距（越小点越多）
   letterSpacing: 0.06,   // 字间距（按字号比例）
 
   // 交互（类 dock）
