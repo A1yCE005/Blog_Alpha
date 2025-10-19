@@ -92,6 +92,7 @@ type WPProps = {
   morphK?: number;
   dockMaxOffset?: number;
   glyphSizePx?: number;            // 粒子字大小（px）
+  particleDensityScale?: number;   // 相对基线的点密度倍数（1 = 基线）
   idleWords?: string[];
   idleHoldMs?: number;
   idleScatterMs?: number;
@@ -133,6 +134,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     morphK,
     dockMaxOffset,
     glyphSizePx,
+    particleDensityScale = 1,
     idleWords: idleWordsProp,
     idleHoldMs: idleHoldMsProp,
     idleScatterMs: idleScatterMsProp,
@@ -147,6 +149,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const tempRef = React.useRef<HTMLCanvasElement | null>(null);
   const readyRef = React.useRef(false);
+  const baseParticleBudgetRef = React.useRef(0);
+  const lastLayoutAreaRef = React.useRef(0);
+  const effectiveGapRef = React.useRef(gap);
   const [ready, setReady] = React.useState(false);
   const prefersReduced = usePrefersReducedMotion();
   const glyphs = React.useMemo(() => CONFIG.bgGlyphs.split(""), []);
@@ -203,6 +208,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       gx?: number; gy?: number;   // 本轮汇聚起始位置
       introGather?: boolean;
     };
+    effectiveGapRef.current = gap;
+
     let particles: P[] = [];
     let baseParticleCount = 0;
 
@@ -211,6 +218,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       canvasH: number;
       gap: number;
       letterSpacing: number;
+      densityScale: number;
+      spacingUsed: number;
       count: number;
       targets: Array<{ x: number; y: number }>;
     };
@@ -446,6 +455,19 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         x += cw + layout.spacingPx;
       }
 
+      const layoutArea = layout.width * layout.size;
+      lastLayoutAreaRef.current = layoutArea;
+      const baseGap = Math.max(1, CONFIG.sampleGap || gap || 1);
+      const baselineForBudget = baselineArea > 0 ? baselineArea : layoutArea;
+      if (baselineForBudget > 0) {
+        const candidate = baselineForBudget / (baseGap * baseGap);
+        if (baseParticleBudgetRef.current <= 0) {
+          baseParticleBudgetRef.current = Math.max(400, candidate);
+        } else if (candidate > baseParticleBudgetRef.current) {
+          baseParticleBudgetRef.current = candidate;
+        }
+      }
+
     }
 
     function sampleTargetsFromTemp(spacing = gap) {
@@ -468,9 +490,25 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     }
 
     function collectTargets(desiredCount?: number) {
+      const layoutArea = lastLayoutAreaRef.current || baselineArea;
+      const baseBudget = baseParticleBudgetRef.current;
+      const densityScale = Math.max(0.25, particleDensityScale);
       let spacing = gap;
-      let targets = sampleTargetsFromTemp(spacing);
+
+      if (layoutArea > 0 && baseBudget > 0) {
+        const allowed = baseBudget * densityScale;
+        const approxCount = layoutArea / Math.max(spacing * spacing, 1);
+        if (approxCount > allowed) {
+          const adjusted = Math.sqrt(layoutArea / allowed);
+          const minAllowed = Math.max(1, gap * 0.35);
+          spacing = Math.max(adjusted, minAllowed);
+        }
+      }
+
+      let spacingUsed = spacing;
+      let targets = sampleTargetsFromTemp(spacingUsed);
       if (!desiredCount || desiredCount <= 0 || targets.length >= desiredCount) {
+        effectiveGapRef.current = spacingUsed;
         return targets;
       }
 
@@ -481,10 +519,12 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         const candidate = sampleTargetsFromTemp(spacing);
         if (candidate.length > targets.length) {
           targets = candidate;
+          spacingUsed = spacing;
         }
         attempt++;
       }
 
+      effectiveGapRef.current = spacingUsed;
       return targets;
     }
 
@@ -496,8 +536,10 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         cached.canvasH === canvas.height &&
         Math.abs(cached.gap - gap) < 1e-6 &&
         Math.abs(cached.letterSpacing - letterSpacing) < 1e-6 &&
+        Math.abs(cached.densityScale - particleDensityScale) < 1e-6 &&
         (!desiredCount || cached.count >= desiredCount);
       if (matches) {
+        effectiveGapRef.current = cached.spacingUsed;
         return cached.targets;
       }
 
@@ -508,6 +550,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         canvasH: canvas.height,
         gap,
         letterSpacing,
+        densityScale: particleDensityScale,
+        spacingUsed: effectiveGapRef.current,
         count: targets.length,
         targets
       });
@@ -618,8 +662,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         for (let i = 0; i < source.length; i++) {
           const base = source[i];
           remapped.push({
-            x: base.x + (Math.random() - 0.5) * gap * 0.35,
-            y: base.y + (Math.random() - 0.5) * gap * 0.35
+            x: base.x + (Math.random() - 0.5) * effectiveGapRef.current * 0.35,
+            y: base.y + (Math.random() - 0.5) * effectiveGapRef.current * 0.35
           });
         }
       }
@@ -630,8 +674,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           const idx = Math.min(source.length - 1, Math.floor(cursor));
           const base = source[idx];
           remapped.push({
-            x: base.x + (Math.random() - 0.5) * gap * 0.35,
-            y: base.y + (Math.random() - 0.5) * gap * 0.35
+            x: base.x + (Math.random() - 0.5) * effectiveGapRef.current * 0.35,
+            y: base.y + (Math.random() - 0.5) * effectiveGapRef.current * 0.35
           });
         }
       }
@@ -656,7 +700,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       const need = targets.length;
 
       const pushOne = (t: {x:number;y:number}) => {
-        const jitter = gap * 1.2;
+        const jitter = effectiveGapRef.current * 1.2;
         const angR = Math.random() * Math.PI * 2;
         const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
 
@@ -931,7 +975,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             p.vy *= 0.984;
             p.x += p.vx * fscale;
             p.y += p.vy * fscale;
-            const margin = Math.max(18, gap * 2.2);
+            const margin = Math.max(18, effectiveGapRef.current * 2.2);
             if (p.x < -margin) { p.x = -margin; p.vx *= -0.42; }
             else if (p.x > w + margin) { p.x = w + margin; p.vx *= -0.42; }
             if (p.y < -margin) { p.y = -margin; p.vy *= -0.36; }
@@ -999,7 +1043,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       // 绘制粒子字符
       ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = CONFIG.colorFg;
       const minDim = Math.min(canvas.width, canvas.height) / DPR;
-      const autoFs = Math.max(8, Math.floor(gap * 1.4));
+      const autoFs = Math.max(8, Math.floor(effectiveGapRef.current * 1.4));
       const userFs = (typeof glyphSizePx === "number" && glyphSizePx > 0) ? Math.max(6, Math.floor(glyphSizePx)) : autoFs;
       const fs = Math.min(userFs, Math.floor(minDim * 0.06));
       ctx.font = `700 ${fs}px ${CONFIG.fontFamily}`;
@@ -1056,6 +1100,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     launchXFrac, launchYFrac, launchRadiusFrac,
     launchSpeed, launchSpeedJitter, launchAngleDeg, launchSpreadDeg,
     glyphSizePx, morphK, dockMaxOffset,
+    particleDensityScale,
     idleWords, idleHold, idleScatter, idleGatherDelay,
     idleGustStrength, idleGustJitter, idleAmbientDrift, idleGatherTransitionMs
   ]);
@@ -1084,9 +1129,13 @@ type FullscreenHomeProps = {
 export default function FullscreenHome({ posts, initialBlogView = false }: FullscreenHomeProps) {
   const [word, setWord] = React.useState(CONFIG.word);
   const [gap, setGap] = React.useState(CONFIG.sampleGap);
+  const [letterSpacing, setLetterSpacing] = React.useState(CONFIG.letterSpacing);
+  const [dropDurationMs, setDropDurationMs] = React.useState(CONFIG.dropDurationMs);
+  const [morphDelayMs, setMorphDelayMs] = React.useState(CONFIG.morphDelayMs);
   const [morphK, setMorphK] = React.useState<number>(0.14);
   const [dockMaxOffset, setDockMaxOffset] = React.useState<number>(10);
   const [glyphSizePx, setGlyphSizePx] = React.useState<number | undefined>(undefined);
+  const [particleDensityScale, setParticleDensityScale] = React.useState(1);
 
   const particlesRef = React.useRef<WordParticlesHandle | null>(null);
   const [hasEnteredBlog, setHasEnteredBlog] = React.useState(initialBlogView);
@@ -1134,6 +1183,44 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     particlesRef.current?.triggerExit();
   }, [hasEnteredBlog, router]);
 
+  React.useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const applyResponsiveTuning = (isMobile: boolean) => {
+      if (isMobile) {
+        const mobileGap = CONFIG.sampleGap * 0.52;
+        setGap(mobileGap);
+        setLetterSpacing(CONFIG.letterSpacing * 0.5);
+        setGlyphSizePx(Math.max(4, Math.round(mobileGap * 1.3)));
+        setDropDurationMs(CONFIG.dropDurationMs);
+        setMorphDelayMs(CONFIG.morphDelayMs);
+        setParticleDensityScale(1.75);
+      } else {
+        setGap(CONFIG.sampleGap);
+        setLetterSpacing(CONFIG.letterSpacing);
+        setGlyphSizePx(undefined);
+        setDropDurationMs(CONFIG.dropDurationMs);
+        setMorphDelayMs(CONFIG.morphDelayMs);
+        setParticleDensityScale(1);
+      }
+    };
+
+    applyResponsiveTuning(mq.matches);
+    const listener = (event: MediaQueryListEvent) => applyResponsiveTuning(event.matches);
+
+    let cleanup: (() => void) | undefined;
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", listener);
+      cleanup = () => mq.removeEventListener("change", listener);
+    } else if (typeof mq.addListener === "function") {
+      mq.addListener(listener);
+      cleanup = () => mq.removeListener(listener);
+    }
+
+    return () => {
+      cleanup?.();
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-black text-zinc-100">
       {!heroRetired && (
@@ -1147,13 +1234,13 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
               ref={particlesRef}
               word={word}
               gap={gap}
-              letterSpacing={CONFIG.letterSpacing}
+              letterSpacing={letterSpacing}
               glyphSizePx={glyphSizePx}
               gravity={CONFIG.gravity}
               bounce={CONFIG.bounce}
               groundFriction={CONFIG.groundFriction}
-              dropDurationMs={CONFIG.dropDurationMs}
-              morphDelayMs={CONFIG.morphDelayMs}
+              dropDurationMs={dropDurationMs}
+              morphDelayMs={morphDelayMs}
               launchXFrac={CONFIG.launchXFrac}
               launchYFrac={CONFIG.launchYFrac}
               launchRadiusFrac={CONFIG.launchRadiusFrac}
@@ -1161,6 +1248,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
               launchSpeedJitter={CONFIG.launchSpeedJitter}
               launchAngleDeg={CONFIG.launchAngleDeg}
               launchSpreadDeg={CONFIG.launchSpreadDeg}
+              particleDensityScale={particleDensityScale}
               morphK={morphK}
               dockMaxOffset={dockMaxOffset}
               onWordChange={setWord}
