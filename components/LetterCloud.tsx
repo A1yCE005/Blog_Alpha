@@ -416,29 +416,82 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         return remapped;
       }
 
-      const repeats = Math.floor(desiredCount / source.length);
-      const remainder = desiredCount % source.length;
-      for (let r = 0; r < repeats; r++) {
-        for (let i = 0; i < source.length; i++) {
-          const base = source[i];
+      const base = source.slice();
+      const baseCount = base.length;
+      const spacing: number[] = new Array(baseCount).fill(gap);
+
+      if (baseCount > 1) {
+        for (let i = 0; i < baseCount; i++) {
+          let nearest = Infinity;
+          let second = Infinity;
+          const a = base[i];
+          for (let j = 0; j < baseCount; j++) {
+            if (i === j) continue;
+            const b = base[j];
+            const dx = a.x - b.x;
+            const dy = a.y - b.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist < nearest) {
+              second = nearest;
+              nearest = dist;
+            } else if (dist < second) {
+              second = dist;
+            }
+          }
+          const local = Number.isFinite(second) ? (nearest + second) * 0.5 : nearest;
+          spacing[i] = Math.max(gap * 0.55, local || gap);
+        }
+      }
+
+      const totalNeeded = desiredCount - baseCount;
+      if (totalNeeded <= 0) {
+        return base.slice(0, desiredCount);
+      }
+
+      const weights = spacing.map((s) => Math.max(0.001, s * s));
+      let totalWeight = 0;
+      for (let i = 0; i < weights.length; i++) totalWeight += weights[i];
+      if (!Number.isFinite(totalWeight) || totalWeight <= 0) {
+        totalWeight = weights.length;
+        for (let i = 0; i < weights.length; i++) weights[i] = 1;
+      }
+
+      const extras = new Array(baseCount).fill(0);
+      const fractional: Array<{ idx: number; frac: number }> = [];
+      let assigned = 0;
+      for (let i = 0; i < baseCount; i++) {
+        const ideal = (weights[i] / totalWeight) * totalNeeded;
+        const whole = Math.floor(ideal);
+        extras[i] = whole;
+        assigned += whole;
+        fractional.push({ idx: i, frac: ideal - whole });
+      }
+
+      if (assigned < totalNeeded) {
+        fractional.sort((a, b) => b.frac - a.frac || (Math.random() - 0.5));
+        let remain = totalNeeded - assigned;
+        for (let k = 0; k < fractional.length && remain > 0; k++, remain--) {
+          extras[fractional[k].idx] += 1;
+        }
+      }
+
+      for (let i = 0; i < baseCount; i++) {
+        const basePoint = base[i];
+        const spread = Math.min(spacing[i] * 0.7, gap * 1.4);
+        remapped.push({ x: basePoint.x, y: basePoint.y });
+        const count = extras[i];
+        for (let n = 0; n < count; n++) {
+          const radius = (Math.random() ** 0.55) * spread;
+          const angle = Math.random() * Math.PI * 2;
+          const jitterX = Math.cos(angle) * radius;
+          const jitterY = Math.sin(angle) * radius;
           remapped.push({
-            x: base.x + (Math.random() - 0.5) * gap * 0.35,
-            y: base.y + (Math.random() - 0.5) * gap * 0.35
+            x: basePoint.x + jitterX,
+            y: basePoint.y + jitterY
           });
         }
       }
-      if (remainder > 0) {
-        const step = source.length / remainder;
-        let cursor = 0;
-        for (let i = 0; i < remainder; i++, cursor += step) {
-          const idx = Math.min(source.length - 1, Math.floor(cursor));
-          const base = source[idx];
-          remapped.push({
-            x: base.x + (Math.random() - 0.5) * gap * 0.35,
-            y: base.y + (Math.random() - 0.5) * gap * 0.35
-          });
-        }
-      }
+
       return remapped.slice(0, desiredCount);
     }
 
