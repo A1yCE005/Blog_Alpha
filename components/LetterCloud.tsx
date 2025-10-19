@@ -57,10 +57,10 @@ const CONFIG = {
   idleHoldMs: 2800,
   idleScatterMs: 1400,
   idleGatherDelayMs: 520,
-  idleGustStrength: 8.4,
-  idleGustJitter: 2.6,
+  idleGustStrength: 5.4,
+  idleGustJitter: 1.8,
   idleAmbientDrift: 0.16,
-  idleGatherTransitionMs: 1680
+  idleGatherTransitionMs: 2320
 };
 
 function usePrefersReducedMotion() {
@@ -257,7 +257,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       wasMorph = false;
       morphElapsedMs = 0;
       for (const p of particles) {
-        const baseSpd = idleGustStrength * (0.65 + Math.random() * 0.7);
+        const baseSpd = idleGustStrength * (0.42 + Math.random() * 0.58);
         const theta = Math.random() * Math.PI * 2;
         p.vx = Math.cos(theta) * baseSpd + (Math.random() - 0.5) * idleGustJitter;
         p.vy = Math.sin(theta) * baseSpd + (Math.random() - 0.5) * idleGustJitter * 0.6;
