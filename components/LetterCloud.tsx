@@ -14,7 +14,7 @@ const CONFIG = {
 
   // 版面与取样
   wordScale: 0.60,       // 词形占 min(width,height) 的比例（用于取样目标点）
-  sampleGap: 5.2,          // 取样间距（越小点越多）
+  sampleGap: 7.5,          // 取样间距（越小点越多）
   letterSpacing: 0.06,   // 字间距（按字号比例）
 
   // 交互（类 dock）
@@ -875,9 +875,15 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
             targetX += pushX; targetY += pushY;
 
-            const baseK = 0.04;
-            const gainK = (typeof morphK === "number" ? morphK : 0.14);
-            const kNow = baseK + easeInOut(tLocal) * gainK;
+            const baseK0 = 0.04;
+            const gainK0 = typeof morphK === "number" ? morphK : 0.14;
+            const durationScale =
+              activeTransitionMs > 0
+                ? Math.max(0.25, Math.min(1.4, baseTransitionMs / activeTransitionMs))
+                : 1;
+            const baseK = baseK0 * durationScale;
+            const gainK = gainK0 * durationScale;
+            const kNow = Math.max(0.008, baseK + easeInOut(tLocal) * gainK);
 
             const dx = targetX - p.x, dy = targetY - p.y;
             const tt = 1 - Math.pow(1 - kNow, Math.max(1, dt / 16.67));
