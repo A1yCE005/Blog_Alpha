@@ -147,6 +147,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const tempRef = React.useRef<HTMLCanvasElement | null>(null);
   const readyRef = React.useRef(false);
+  const baseCharCountRef = React.useRef<number | null>(null);
   const [ready, setReady] = React.useState(false);
   const prefersReduced = usePrefersReducedMotion();
   const glyphs = React.useMemo(() => CONFIG.bgGlyphs.split(""), []);
@@ -322,6 +323,15 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       // 根据 wordScale 估算字号，然后按目标宽 85% 自适配
       let size = Math.floor(Math.min(w, h) * CONFIG.wordScale);
 
+      const effectiveCharCount = Math.max(1, text.replace(/\s+/g, "").length || text.length || 1);
+      if (baseCharCountRef.current == null) {
+        baseCharCountRef.current = effectiveCharCount;
+      }
+      const baseChars = Math.max(1, baseCharCountRef.current || effectiveCharCount);
+      const densityScale = baseChars / Math.max(1, effectiveCharCount);
+      const clampedScale = Math.min(2.8, Math.max(0.55, densityScale));
+      size = Math.max(12, size * clampedScale);
+
       tctx.setTransform(1, 0, 0, 1, 0, 0);
       tctx.clearRect(0, 0, temp.width, temp.height);
       tctx.fillStyle = "white";
@@ -382,48 +392,25 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     function collectTargets(desiredCount?: number) {
       let spacing = gap;
       let targets = sampleTargetsFromTemp(spacing);
-      if (!desiredCount || desiredCount <= 0 || targets.length >= desiredCount) {
-        return targets;
-      }
 
-      const minSpacing = Math.max(1.05, gap * 0.26);
-      const attemptLimit = 8;
-      for (let attempt = 0; attempt < attemptLimit && targets.length < desiredCount; attempt++) {
-        const nextSpacing = Math.max(minSpacing, spacing * 0.82);
-        if (nextSpacing === spacing && spacing === minSpacing) {
-          break;
-        }
-        spacing = nextSpacing;
-        const candidate = sampleTargetsFromTemp(spacing);
-        if (candidate.length > targets.length) {
-          targets = candidate;
-        } else if (spacing <= minSpacing && candidate.length >= targets.length) {
-          targets = candidate;
-          break;
+      if (desiredCount && desiredCount > 0 && targets.length > 0) {
+        const ratio = desiredCount / targets.length;
+        if (ratio > 1.12) {
+          const scaled = Math.max(0.85, spacing / Math.sqrt(Math.min(ratio, 3)));
+          if (Math.abs(scaled - spacing) > 0.01) {
+            spacing = scaled;
+            targets = sampleTargetsFromTemp(spacing);
+          }
+        } else if (ratio < 0.88) {
+          const scaled = Math.min(spacing * Math.sqrt(Math.min(1 / Math.max(ratio, 1e-3), 3)), spacing * 1.65);
+          if (Math.abs(scaled - spacing) > 0.01) {
+            spacing = scaled;
+            targets = sampleTargetsFromTemp(spacing);
+          }
         }
       }
 
-      if (targets.length >= desiredCount) {
-        return targets;
-      }
-
-      const merged = targets.slice();
-      const quant = (val: number) => Math.round(val * 8) / 8;
-      const seen = new Set(merged.map((p) => `${quant(p.x)}:${quant(p.y)}`));
-      let extraSpacing = Math.max(minSpacing * 0.92, 0.85);
-      for (let pass = 0; pass < 6 && merged.length < desiredCount; pass++) {
-        const passTargets = sampleTargetsFromTemp(extraSpacing);
-        for (let i = 0; i < passTargets.length && merged.length < desiredCount; i++) {
-          const pt = passTargets[i];
-          const key = `${quant(pt.x)}:${quant(pt.y)}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          merged.push(pt);
-        }
-        extraSpacing = Math.max(0.75, extraSpacing * 0.88);
-      }
-
-      return merged;
+      return targets;
     }
 
     function remapTargets(
