@@ -637,6 +637,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       idleHoldElapsed = 0;
       idleScatterElapsed = 0;
       idleGatherDelayLeft = 0;
+      activeTransitionMs = idleGatherTransitionMs;
+      activeTransitionJitter = baseTransitionJitter;
+      updateGatherTiming();
       const targets = prepareTargets(text);
       const w = canvas.width / DPR;
       const h = canvas.height / DPR;
