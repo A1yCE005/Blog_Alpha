@@ -60,7 +60,7 @@ const CONFIG = {
   idleGustStrength: 5.4,
   idleGustJitter: 1.8,
   idleAmbientDrift: 0.16,
-  idleGatherTransitionMs: 3200
+  idleGatherTransitionMs: 3800
 };
 
 function usePrefersReducedMotion() {
