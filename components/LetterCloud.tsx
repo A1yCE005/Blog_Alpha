@@ -8,13 +8,13 @@ import type { PostSummary } from "@/lib/posts";
 
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
 const CONFIG = {
-  word: "Lighthosue",
+  word: "Lighthouse",
   fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto",
   fontWeight: 800,
 
   // 版面与取样
   wordScale: 0.60,       // 词形占 min(width,height) 的比例（用于取样目标点）
-  sampleGap: 5.2,          // 取样间距（越小点越多）
+  sampleGap: 7.5,          // 取样间距（越小点越多）
   letterSpacing: 0.06,   // 字间距（按字号比例）
 
   // 交互（类 dock）
@@ -50,7 +50,17 @@ const CONFIG = {
   funnelXFrac: 0.50,       // 汇聚点 X（相对宽度 0..1）
   funnelYFrac: 0.52,       // 汇聚点 Y（相对高度 0..1）
   funnelRadiusPx: 18,      // 汇聚束初始半径
-  funnelJitterPx: 6        // 汇聚时的轻微抖散
+  funnelJitterPx: 6,       // 汇聚时的轻微抖散
+
+  // 待机循环
+  idleWords: ["Lighthouse", "Halo", "Hi"],
+  idleHoldMs: 2800,
+  idleScatterMs: 1400,
+  idleGatherDelayMs: 520,
+  idleGustStrength: 5.4,
+  idleGustJitter: 1.8,
+  idleAmbientDrift: 0.16,
+  idleGatherTransitionMs: 3800
 };
 
 function usePrefersReducedMotion() {
@@ -69,8 +79,106 @@ const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 // 近似 cubic-bezier(0.4, 0.0, 0.2, 1)
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
+type WordTextSpec = {
+  type?: "text";
+  text: string;
+  label?: string;
+};
+
+type WordSvgSpec = {
+  type: "svg";
+  path: string | string[];
+  viewBox?: string | { minX: number; minY: number; width: number; height: number };
+  label?: string;
+  fillRule?: CanvasFillRule;
+};
+
+type WordInput = string | WordTextSpec | WordSvgSpec;
+
+type NormalizedWord = {
+  key: string;
+  label: string;
+  type: "text" | "svg";
+  text?: string;
+  svg?: {
+    paths: string[];
+    viewBox: { minX: number; minY: number; width: number; height: number };
+    fillRule?: CanvasFillRule;
+  };
+  complexity: number;
+};
+
+function normalizeWord(input: WordInput): NormalizedWord {
+  if (typeof input === "string") {
+    return {
+      key: `text:${input}`,
+      label: input,
+      type: "text",
+      text: input,
+      complexity: Math.max(1, input.length)
+    };
+  }
+
+  if ((input as WordSvgSpec).type === "svg") {
+    const spec = input as WordSvgSpec;
+    const rawPaths = Array.isArray(spec.path) ? spec.path : [spec.path];
+    const paths = rawPaths.filter(Boolean);
+    if (paths.length === 0) {
+      const fallbackLabel = spec.label ?? "Shape";
+      console.warn("SVG word spec requires at least one path", spec);
+      return {
+        key: `text:${fallbackLabel}`,
+        label: fallbackLabel,
+        type: "text",
+        text: fallbackLabel,
+        complexity: Math.max(1, fallbackLabel.length)
+      };
+    }
+
+    const viewBox = (() => {
+      if (!spec.viewBox) {
+        return { minX: 0, minY: 0, width: 100, height: 100 };
+      }
+      if (typeof spec.viewBox === "string") {
+        const parts = spec.viewBox.trim().split(/[\s,]+/).map(Number);
+        if (parts.length === 4 && parts.every((n) => Number.isFinite(n))) {
+          return { minX: parts[0], minY: parts[1], width: parts[2], height: parts[3] };
+        }
+        console.warn("Invalid SVG viewBox string, falling back to default", spec.viewBox);
+        return { minX: 0, minY: 0, width: 100, height: 100 };
+      }
+      const { minX = 0, minY = 0, width = 100, height = 100 } = spec.viewBox;
+      return { minX, minY, width, height };
+    })();
+
+    const label = spec.label ?? "Shape";
+    const vbKey = `${viewBox.minX},${viewBox.minY},${viewBox.width},${viewBox.height}`;
+    const key = `svg:${vbKey}:${paths.join("|")}`;
+    const complexity = paths.reduce((acc, path) => acc + path.length, 0);
+
+    return {
+      key,
+      label,
+      type: "svg",
+      svg: { paths, viewBox, fillRule: spec.fillRule },
+      complexity: Math.max(1, complexity)
+    };
+  }
+
+  const textSpec = input as WordTextSpec;
+  const text = textSpec.text ?? "";
+  const label = textSpec.label ?? text;
+  return {
+    key: `text:${text}`,
+    label,
+    type: "text",
+    text,
+    complexity: Math.max(1, text.length)
+  };
+}
+
 type WPProps = {
-  word?: string;
+  word?: WordInput;
   gap?: number;
   letterSpacing?: number;
   gravity?: number; bounce?: number; groundFriction?: number;
@@ -82,16 +190,25 @@ type WPProps = {
   morphK?: number;
   dockMaxOffset?: number;
   glyphSizePx?: number;            // 粒子字大小（px）
+  idleWords?: WordInput[];
+  idleHoldMs?: number;
+  idleScatterMs?: number;
+  idleGatherDelayMs?: number;
+  idleGustStrength?: number;
+  idleGustJitter?: number;
+  idleAmbientDrift?: number;
+  idleGatherTransitionMs?: number;
+  onWordChange?: (word: string) => void;
 };
 
 export type WordParticlesHandle = {
-  retarget(word: string): void;
+  retarget(word: WordInput): void;
   triggerExit(): void;
 };
 
 const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function WordParticles(props, ref) {
   const {
-    word = CONFIG.word,
+    word: wordInput = CONFIG.word,
     gap = CONFIG.sampleGap,
     letterSpacing = CONFIG.letterSpacing,
 
@@ -113,7 +230,16 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     outline = false,
     morphK,
     dockMaxOffset,
-    glyphSizePx
+    glyphSizePx,
+    idleWords: idleWordsProp,
+    idleHoldMs: idleHoldMsProp,
+    idleScatterMs: idleScatterMsProp,
+    idleGatherDelayMs: idleGatherDelayMsProp,
+    idleGustStrength: idleGustStrengthProp,
+    idleGustJitter: idleGustJitterProp,
+    idleAmbientDrift: idleAmbientDriftProp,
+    idleGatherTransitionMs: idleGatherTransitionMsProp,
+    onWordChange
   } = props;
 
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
@@ -122,15 +248,34 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   const [ready, setReady] = React.useState(false);
   const prefersReduced = usePrefersReducedMotion();
   const glyphs = React.useMemo(() => CONFIG.bgGlyphs.split(""), []);
+  const idleWordInputs = React.useMemo(
+    () => (idleWordsProp && idleWordsProp.length > 0 ? idleWordsProp : CONFIG.idleWords || []),
+    [idleWordsProp]
+  );
+  const idleWords = React.useMemo(() => idleWordInputs.map((w) => normalizeWord(w)), [idleWordInputs]);
+  const resolvedInitialWord = React.useMemo(() => normalizeWord(wordInput), [wordInput]);
+  const idleHold = idleHoldMsProp ?? CONFIG.idleHoldMs ?? 2800;
+  const idleScatter = idleScatterMsProp ?? CONFIG.idleScatterMs ?? 1400;
+  const idleGatherDelay = idleGatherDelayMsProp ?? CONFIG.idleGatherDelayMs ?? 520;
+  const idleGustStrength = idleGustStrengthProp ?? CONFIG.idleGustStrength ?? 8.4;
+  const idleGustJitter = idleGustJitterProp ?? CONFIG.idleGustJitter ?? 2.6;
+  const idleAmbientDrift = idleAmbientDriftProp ?? CONFIG.idleAmbientDrift ?? 0.16;
+  const idleGatherTransitionMs =
+    idleGatherTransitionMsProp ?? CONFIG.idleGatherTransitionMs ?? (CONFIG.transitionMs ?? 1200) * 1.35;
+
+  const onWordChangeRef = React.useRef(onWordChange);
+  React.useEffect(() => {
+    onWordChangeRef.current = onWordChange;
+  }, [onWordChange]);
 
   // 用于“在位重定向”与退出动画触发
-  const retargetRef = React.useRef<null | ((newWord: string) => void)>(null);
+  const retargetRef = React.useRef<null | ((newWord: WordInput) => void)>(null);
   const exitTriggerRef = React.useRef<() => void>(() => {});
 
   React.useImperativeHandle(
     ref,
     () => ({
-      retarget(newWord: string) {
+      retarget(newWord: WordInput) {
         retargetRef.current?.(newWord);
       },
       triggerExit() {
@@ -155,21 +300,138 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       d?: number;                 // 错峰延迟（ms）
       hox?: number; hoy?: number; // 汇聚方向单位向量
       hrad?: number;              // 汇聚初始半径
+      gx?: number; gy?: number;   // 本轮汇聚起始位置
+      introGather?: boolean;
     };
     let particles: P[] = [];
+    let baseParticleCount = 0;
 
-    let phase: "drop" | "morph" | "exit" = "drop";
+    type WordCacheEntry = {
+      canvasW: number;
+      canvasH: number;
+      gap: number;
+      letterSpacing: number;
+      count: number;
+      targets: Array<{ x: number; y: number }>;
+    };
+    const wordCache = new Map<string, WordCacheEntry>();
+    type LayoutMeta = {
+      size: number;
+      width: number;
+      spacingPx: number;
+      glyphWidths: number[];
+    };
+    let baselineArea = 0;
+    let baselineComplexity = 0;
+
+    type Phase = "drop" | "morph" | "idleScatter" | "exit";
+    let phase: Phase = "drop";
     let wasMorph = false;
     let morphElapsedMs = 0;
     let exitElapsedMs = 0;
 
     let elapsedMs = 0, lastTs = 0;
 
+    let currentWord = resolvedInitialWord;
+    type IdleState = "inactive" | "waiting" | "gust" | "awaitGather" | "gathering";
+    let idleState: IdleState = "inactive";
+    let idleHoldElapsed = 0;
+    let idleScatterElapsed = 0;
+    let idleGatherDelayLeft = 0;
+    let introSettled = false;
+    let idleWordIndex = idleWords.findIndex((w) => w.key === currentWord.key);
+    if (idleWordIndex < 0) idleWordIndex = 0;
+
     const mouse = { x: -9999, y: -9999 };
     const smouse = { x: -9999, y: -9999 };
 
-    const TRANS_DUR = CONFIG.transitionMs ?? 1200;
-    const TRANS_JIT = CONFIG.transitionJitterMs ?? 0;
+    const baseTransitionMs = CONFIG.transitionMs ?? 1200;
+    const baseTransitionJitter = CONFIG.transitionJitterMs ?? 0;
+    let activeTransitionMs = baseTransitionMs;
+    let activeTransitionJitter = baseTransitionJitter;
+    let gatherCompleteMs = activeTransitionMs + activeTransitionJitter + 260;
+    const updateGatherTiming = () => {
+      gatherCompleteMs = activeTransitionMs + activeTransitionJitter + 260;
+    };
+
+    const canIdleCycle = () => idleWords.length > 1 && phase !== "exit" && !prefersReduced;
+
+    const markGatherStart = (isIntro: boolean) => {
+      for (const p of particles) {
+        p.gx = p.x;
+        p.gy = p.y;
+        p.introGather = isIntro;
+      }
+    };
+
+    function syncIdleIndex(next: NormalizedWord) {
+      const idx = idleWords.findIndex((w) => w.key === next.key);
+      if (idx >= 0) idleWordIndex = idx;
+    }
+
+    function startIdleHold() {
+      if (!canIdleCycle()) {
+        idleState = "inactive";
+        return;
+      }
+      idleState = "waiting";
+      idleHoldElapsed = 0;
+    }
+
+    function startIdleScatter() {
+      if (!canIdleCycle()) return;
+      idleState = "gust";
+      idleScatterElapsed = 0;
+      phase = "idleScatter";
+      wasMorph = false;
+      morphElapsedMs = 0;
+      for (const p of particles) {
+        const baseSpd = idleGustStrength * (0.45 + Math.random() * 0.55);
+        const theta = Math.random() * Math.PI * 2;
+        const gust = {
+          x: Math.cos(theta) * baseSpd,
+          y: Math.sin(theta) * baseSpd
+        };
+        const jitterX = (Math.random() - 0.5) * idleGustJitter;
+        const jitterY = (Math.random() - 0.5) * idleGustJitter * 0.6;
+        p.vx = gust.x + jitterX;
+        p.vy = gust.y + jitterY;
+        const maxScatterSpeed = idleGustStrength * 1.35;
+        const vMag = Math.hypot(p.vx, p.vy);
+        if (vMag > maxScatterSpeed) {
+          const scale = maxScatterSpeed / vMag;
+          p.vx *= scale;
+          p.vy *= scale;
+        }
+      }
+    }
+
+    function scheduleIdleGather() {
+      if (!canIdleCycle()) {
+        idleState = "inactive";
+        return;
+      }
+      idleState = "awaitGather";
+      idleGatherDelayLeft = idleGatherDelay;
+    }
+
+    function beginIdleGather() {
+      if (!canIdleCycle()) {
+        idleState = "inactive";
+        return;
+      }
+      if (idleWords.length === 0) {
+        idleState = "inactive";
+        return;
+      }
+      idleState = "gathering";
+      idleScatterElapsed = 0;
+      idleHoldElapsed = 0;
+      idleGatherDelayLeft = 0;
+      idleWordIndex = (idleWordIndex + 1) % idleWords.length;
+      const nextWord = idleWords[idleWordIndex];
+      retargetToWord(nextWord);
+    }
 
     function ensureTempSize() {
       const rect = canvas.getBoundingClientRect();
@@ -180,50 +442,159 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       }
     }
 
-    function renderWordToTemp(text: string) {
+    function renderWordToTemp(word: NormalizedWord) {
       ensureTempSize();
       const w = canvas.width / DPR;
       const h = canvas.height / DPR;
 
-      // 根据 wordScale 估算字号，然后按目标宽 85% 自适配
-      let size = Math.floor(Math.min(w, h) * CONFIG.wordScale);
+      const minSize = 12;
+      const maxHeight = Math.max(minSize, h * 0.9);
+      const targetW = w * 0.85;
+      const baseSize = Math.floor(Math.min(w, h) * CONFIG.wordScale);
+      const needsBaseline = baselineArea <= 0 || word.complexity > baselineComplexity;
 
       tctx.setTransform(1, 0, 0, 1, 0, 0);
       tctx.clearRect(0, 0, temp.width, temp.height);
       tctx.fillStyle = "white";
-      tctx.textAlign = "center";
-      tctx.textBaseline = "middle";
 
-      const targetW = w * 0.85;
+      if (word.type === "svg" && word.svg) {
+        const { paths, viewBox, fillRule } = word.svg;
+        const vbWidth = Math.max(1e-3, viewBox.width);
+        const vbHeight = Math.max(1e-3, viewBox.height);
+        const clampScale = (scale: number) => {
+          const limitW = targetW / vbWidth;
+          const limitH = maxHeight / vbHeight;
+          const limit = Math.min(limitW, limitH);
+          return Math.max(1e-3, Math.min(scale, limit));
+        };
 
-      const measureTotal = (sz: number) => {
+        let scale = clampScale(Math.min(targetW / vbWidth, maxHeight / vbHeight));
+        const baseArea = vbWidth * vbHeight * scale * scale;
+        if (baselineArea > 0) {
+          const ratio = Math.sqrt(baselineArea / Math.max(baseArea, 1e-3));
+          scale = clampScale(scale * Math.max(0.6, Math.min(1.4, ratio)));
+        }
+
+        const finalWidth = vbWidth * scale;
+        const finalHeight = vbHeight * scale;
+        const offsetX = (w - finalWidth) / 2;
+        const offsetY = (h - finalHeight) / 2;
+        const scalePx = scale * DPR;
+
+        tctx.setTransform(
+          scalePx,
+          0,
+          0,
+          scalePx,
+          offsetX * DPR - viewBox.minX * scalePx,
+          offsetY * DPR - viewBox.minY * scalePx
+        );
+        for (const path of paths) {
+          if (!path) continue;
+          const shape = new Path2D(path);
+          tctx.fill(shape, fillRule ?? "nonzero");
+        }
+        tctx.setTransform(1, 0, 0, 1, 0, 0);
+
+        if (needsBaseline) {
+          baselineArea = finalWidth * finalHeight;
+          baselineComplexity = word.complexity;
+        }
+        return;
+      }
+
+      const text = word.text ?? word.label;
+
+      const measureWord = (sz: number) => {
+        const glyphWidths: number[] = new Array(text.length);
         tctx.font = `${CONFIG.fontWeight} ${sz * DPR}px ${CONFIG.fontFamily}`;
-        const sp = sz * (letterSpacing ?? 0.06);
+        const spacingPx = sz * (letterSpacing ?? 0.06);
         let width = 0;
         for (let i = 0; i < text.length; i++) {
-          width += tctx.measureText(text[i]).width / DPR;
-          if (i < text.length - 1) width += sp;
+          const wGlyph = tctx.measureText(text[i]).width / DPR;
+          glyphWidths[i] = wGlyph;
+          width += wGlyph;
+          if (i < text.length - 1) width += spacingPx;
         }
-        return { width, sp };
+        return { width, spacingPx, glyphWidths };
       };
 
-      let { width: totalW, sp: spacingPx } = measureTotal(size);
-      if (totalW > 0) {
-        const fitted = Math.min(size * (targetW / totalW), h * 0.60);
-        size = Math.max(12, fitted);
-        ({ width: totalW, sp: spacingPx } = measureTotal(size));
+      const clampSize = (sz: number) => Math.max(minSize, Math.min(maxHeight, sz));
+
+      let layout: LayoutMeta;
+
+      if (needsBaseline) {
+        let size = clampSize(baseSize);
+        let metrics = measureWord(size);
+        if (metrics.width > targetW) {
+          const scale = targetW / Math.max(metrics.width, 1e-3);
+          size = clampSize(size * scale);
+          metrics = measureWord(size);
+        }
+        if (size > maxHeight) {
+          size = maxHeight;
+          metrics = measureWord(size);
+        }
+        layout = {
+          size,
+          width: metrics.width,
+          spacingPx: metrics.spacingPx,
+          glyphWidths: metrics.glyphWidths
+        };
+        baselineArea = metrics.width * size;
+        baselineComplexity = word.complexity;
+      } else {
+        let size = clampSize(Math.sqrt(baselineArea / Math.max(word.complexity, 1)));
+        let metrics = measureWord(size);
+        for (let iter = 0; iter < 6; iter++) {
+          const width = metrics.width;
+          const area = width * size;
+          let adjusted = false;
+          if (width > targetW) {
+            const scale = targetW / Math.max(width, 1e-3);
+            size = clampSize(size * scale);
+            metrics = measureWord(size);
+            adjusted = true;
+          }
+          if (size > maxHeight) {
+            size = maxHeight;
+            metrics = measureWord(size);
+            adjusted = true;
+          }
+          if (adjusted) {
+            continue;
+          }
+          if (baselineArea > 0) {
+            const ratio = Math.sqrt(baselineArea / Math.max(area, 1));
+            if (Math.abs(ratio - 1) < 0.01) {
+              break;
+            }
+            size = clampSize(size * Math.max(0.75, Math.min(1.25, ratio)));
+            metrics = measureWord(size);
+          } else {
+            break;
+          }
+        }
+        layout = {
+          size,
+          width: metrics.width,
+          spacingPx: metrics.spacingPx,
+          glyphWidths: metrics.glyphWidths
+        };
       }
 
-      tctx.font = `${CONFIG.fontWeight} ${size * DPR}px ${CONFIG.fontFamily}`;
-      let x = (w - totalW) / 2;
+      tctx.textAlign = "center";
+      tctx.textBaseline = "middle";
+      tctx.font = `${CONFIG.fontWeight} ${layout.size * DPR}px ${CONFIG.fontFamily}`;
+
+      let x = (w - layout.width) / 2;
       const midY = (h / 2) * DPR;
-
       for (let i = 0; i < text.length; i++) {
-        const ch = text[i];
-        const cw = tctx.measureText(ch).width / DPR;
-        tctx.fillText(ch, (x + cw / 2) * DPR, midY);
-        x += cw + spacingPx;
+        const cw = layout.glyphWidths[i] ?? 0;
+        tctx.fillText(text[i], (x + cw / 2) * DPR, midY);
+        x += cw + layout.spacingPx;
       }
+
     }
 
     function sampleTargetsFromTemp(spacing = gap) {
@@ -245,10 +616,189 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       return targets;
     }
 
+    function collectTargets(desiredCount?: number) {
+      let spacing = gap;
+      let targets = sampleTargetsFromTemp(spacing);
+      if (!desiredCount || desiredCount <= 0 || targets.length >= desiredCount) {
+        return targets;
+      }
+
+      const minSpacing = Math.max(1.0, gap * 0.3);
+      let attempt = 0;
+      while (attempt < 4 && targets.length < desiredCount && spacing > minSpacing) {
+        spacing = Math.max(minSpacing, spacing * 0.86);
+        const candidate = sampleTargetsFromTemp(spacing);
+        if (candidate.length > targets.length) {
+          targets = candidate;
+        }
+        attempt++;
+      }
+
+      return targets;
+    }
+
+    function prepareTargets(word: NormalizedWord, desiredCount?: number) {
+      const key = word.key;
+      const cached = wordCache.get(key);
+      const matches =
+        cached &&
+        cached.canvasW === canvas.width &&
+        cached.canvasH === canvas.height &&
+        Math.abs(cached.gap - gap) < 1e-6 &&
+        Math.abs(cached.letterSpacing - letterSpacing) < 1e-6 &&
+        (!desiredCount || cached.count >= desiredCount);
+      if (matches) {
+        return cached.targets;
+      }
+
+      renderWordToTemp(word);
+      const targets = collectTargets(desiredCount);
+      wordCache.set(key, {
+        canvasW: canvas.width,
+        canvasH: canvas.height,
+        gap,
+        letterSpacing,
+        count: targets.length,
+        targets
+      });
+      return targets;
+    }
+
+    function remapTargets(
+      source: Array<{ x: number; y: number }>,
+      desiredCount: number
+    ) {
+      if (desiredCount <= 0) {
+        return [];
+      }
+      if (source.length === 0) {
+        const fallback: Array<{ x: number; y: number }> = [];
+        const cx = canvas.width / (DPR * 2);
+        const cy = canvas.height / (DPR * 2);
+        for (let i = 0; i < desiredCount; i++) {
+          const ang = (i / Math.max(1, desiredCount)) * Math.PI * 2;
+          const rad = (CONFIG.funnelRadiusPx ?? 18) * 0.6;
+          fallback.push({
+            x: cx + Math.cos(ang) * rad,
+            y: cy + Math.sin(ang) * rad
+          });
+        }
+        return fallback;
+      }
+      if (source.length === desiredCount) {
+        return source;
+      }
+
+      const remapped: Array<{ x: number; y: number }> = [];
+      if (source.length > desiredCount) {
+        const chosen: number[] = [];
+        const used = new Uint8Array(source.length);
+        const minDistSq = new Float64Array(source.length);
+        const { width: canvasW, height: canvasH } = canvas;
+        const cx = canvasW / (DPR * 2);
+        const cy = canvasH / (DPR * 2);
+
+        let firstIdx = 0;
+        let bestToCenter = Number.POSITIVE_INFINITY;
+        for (let i = 0; i < source.length; i++) {
+          const dx = source[i].x - cx;
+          const dy = source[i].y - cy;
+          const distSq = dx * dx + dy * dy;
+          if (distSq < bestToCenter) {
+            bestToCenter = distSq;
+            firstIdx = i;
+          }
+          minDistSq[i] = Number.POSITIVE_INFINITY;
+        }
+
+        chosen.push(firstIdx);
+        used[firstIdx] = 1;
+
+        function updateMinDistances(newIdx: number) {
+          const pick = source[newIdx];
+          for (let i = 0; i < source.length; i++) {
+            if (used[i]) continue;
+            const dx = source[i].x - pick.x;
+            const dy = source[i].y - pick.y;
+            const distSq = dx * dx + dy * dy;
+            if (distSq < minDistSq[i]) {
+              minDistSq[i] = distSq;
+            }
+          }
+        }
+
+        updateMinDistances(firstIdx);
+
+        while (chosen.length < desiredCount) {
+          let nextIdx = -1;
+          let farthest = -1;
+          for (let i = 0; i < source.length; i++) {
+            if (used[i]) continue;
+            const distSq = minDistSq[i];
+            if (distSq > farthest) {
+              farthest = distSq;
+              nextIdx = i;
+            }
+          }
+          if (nextIdx === -1) {
+            break;
+          }
+          chosen.push(nextIdx);
+          used[nextIdx] = 1;
+          updateMinDistances(nextIdx);
+        }
+
+        for (let i = 0; i < chosen.length && remapped.length < desiredCount; i++) {
+          remapped.push({ x: source[chosen[i]].x, y: source[chosen[i]].y });
+        }
+
+        if (remapped.length < desiredCount) {
+          // fallback to random picks to fill any missing spots (should be rare)
+          while (remapped.length < desiredCount) {
+            const idx = Math.floor(Math.random() * source.length);
+            remapped.push({ x: source[idx].x, y: source[idx].y });
+          }
+        }
+        return remapped;
+      }
+
+      const repeats = Math.floor(desiredCount / source.length);
+      const remainder = desiredCount % source.length;
+      for (let r = 0; r < repeats; r++) {
+        for (let i = 0; i < source.length; i++) {
+          const base = source[i];
+          remapped.push({
+            x: base.x + (Math.random() - 0.5) * gap * 0.35,
+            y: base.y + (Math.random() - 0.5) * gap * 0.35
+          });
+        }
+      }
+      if (remainder > 0) {
+        const step = source.length / remainder;
+        let cursor = 0;
+        for (let i = 0; i < remainder; i++, cursor += step) {
+          const idx = Math.min(source.length - 1, Math.floor(cursor));
+          const base = source[idx];
+          remapped.push({
+            x: base.x + (Math.random() - 0.5) * gap * 0.35,
+            y: base.y + (Math.random() - 0.5) * gap * 0.35
+          });
+        }
+      }
+      return remapped.slice(0, desiredCount);
+    }
+
     /** 首次构建场景（含首轮 drop） */
-    function buildScene(text: string) {
-      renderWordToTemp(text);
-      const targets = sampleTargetsFromTemp(gap);
+    function buildScene(word: NormalizedWord) {
+      currentWord = word;
+      syncIdleIndex(word);
+      onWordChangeRef.current?.(word.label);
+      introSettled = false;
+      idleState = "inactive";
+      idleHoldElapsed = 0;
+      idleScatterElapsed = 0;
+      idleGatherDelayLeft = 0;
+      const targets = prepareTargets(word);
       const w = canvas.width / DPR;
       const h = canvas.height / DPR;
 
@@ -276,7 +826,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           vx: Math.cos(ang) * spd,
           vy: Math.sin(ang) * spd,
           tx: t.x, ty: t.y,
-          d: Math.random() * TRANS_JIT,
+          d: Math.random() * activeTransitionJitter,
           c: glyphs[(Math.random() * glyphs.length) | 0],
           hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0
         });
@@ -287,42 +837,61 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         pushOne(t);
       }
 
+      baseParticleCount = particles.length;
+      // 让首轮汇聚使用与待机循环一致的时长/力度，确保投掷后的落点动画与待机阶段风格统一
+      activeTransitionMs = idleGatherTransitionMs;
+      activeTransitionJitter = baseTransitionJitter;
+      updateGatherTiming();
       readyRef.current = true;
       setReady(true);
     }
 
     /** ★ 在位重定向：仅更新目标，不清场、不重建循环 */
-    function retargetToWord(newWord: string) {
+    function retargetToWord(newWord: NormalizedWord) {
       if (phase === "exit") return;
-      renderWordToTemp(newWord);
-      const targets = sampleTargetsFromTemp(gap);
-      const need = targets.length;
+      if (!newWord) return;
+      const sameWord = newWord.key === currentWord.key;
+      if (sameWord && phase !== "idleScatter") {
+        return;
+      }
+      const wasIdleCycle =
+        idleState === "gathering" || idleState === "gust" || idleState === "awaitGather";
 
-      // 调整粒子数量
-      if (particles.length < need) {
-        const jitter = gap * 1.2;
-        for (let i = particles.length; i < need; i++) {
-          const t = targets[i];
-          const angR = Math.random() * Math.PI * 2;
-          const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
-          particles.push({
-            x: t.x + (Math.random() - 0.5) * jitter,
-            y: t.y + (Math.random() - 0.5) * jitter,
-            vx: 0, vy: 0, tx: t.x, ty: t.y,
-            d: Math.random() * TRANS_JIT,
-            c: glyphs[(Math.random() * glyphs.length) | 0],
-            hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0
-          });
-        }
-      } else if (particles.length > need) {
-        particles = particles.slice(0, need);
+      if (!sameWord) {
+        currentWord = newWord;
+        syncIdleIndex(newWord);
+        onWordChangeRef.current?.(newWord.label);
+      } else {
+        syncIdleIndex(newWord);
+      }
+
+      const desiredCount =
+        particles.length > 0
+          ? particles.length
+          : baseParticleCount > 0
+          ? baseParticleCount
+          : undefined;
+      const targets = prepareTargets(newWord, desiredCount);
+      const currentCount = desiredCount ?? targets.length;
+      const mappedTargets = remapTargets(targets, currentCount);
+
+      if (wasIdleCycle) {
+        activeTransitionMs = idleGatherTransitionMs;
+        activeTransitionJitter = baseTransitionJitter;
+        updateGatherTiming();
+      } else {
+        activeTransitionMs = baseTransitionMs;
+        activeTransitionJitter = baseTransitionJitter;
+        updateGatherTiming();
       }
 
       // 写入新目标 & 刷新错峰与汇聚方向
-      for (let i = 0; i < need; i++) {
-        particles[i].tx = targets[i].x;
-        particles[i].ty = targets[i].y;
-        particles[i].d  = Math.random() * TRANS_JIT;
+      const count = Math.min(particles.length, mappedTargets.length);
+      for (let i = 0; i < count; i++) {
+        const target = mappedTargets[i];
+        particles[i].tx = target.x;
+        particles[i].ty = target.y;
+        particles[i].d  = Math.random() * activeTransitionJitter;
 
         const angR = Math.random() * Math.PI * 2;
         const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
@@ -331,19 +900,45 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         particles[i].hrad = r0;
       }
 
+      if (particles.length > count) {
+        for (let i = count; i < particles.length; i++) {
+          const angR = Math.random() * Math.PI * 2;
+          const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
+          particles[i].tx = canvas.width / (DPR * 2);
+          particles[i].ty = canvas.height / (DPR * 2);
+          particles[i].d = Math.random() * activeTransitionJitter;
+          particles[i].hox = Math.cos(angR);
+          particles[i].hoy = Math.sin(angR);
+          particles[i].hrad = r0;
+        }
+      }
+
+      markGatherStart(false);
+
       // 进入 morph 并重置计时
+      if (idleState === "gust" || idleState === "awaitGather") {
+        idleState = "gathering";
+      }
       phase = "morph";
       wasMorph = false;
       morphElapsedMs = 0;
     }
 
     // 暴露给外层
-    retargetRef.current = retargetToWord;
+    retargetRef.current = (input: WordInput) => {
+      try {
+        const resolved = normalizeWord(input);
+        retargetToWord(resolved);
+      } catch (err) {
+        console.error(err);
+      }
+    };
 
     function triggerExit() {
       if (phase === "exit") return;
       phase = "exit";
       exitElapsedMs = 0;
+      idleState = "inactive";
       for (const p of particles) {
         const ang = Math.random() * Math.PI * 2;
         const speed = 4 + Math.random() * 5;
@@ -360,7 +955,13 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       const h = Math.max(1, Math.floor(rect.height * DPR));
       canvas.width = w; canvas.height = h;
       (ctx as any).setTransform(DPR, 0, 0, DPR, 0, 0);
-      buildScene(word);
+      wordCache.clear();
+      baselineArea = 0;
+      baselineComplexity = 0;
+      activeTransitionMs = baseTransitionMs;
+      activeTransitionJitter = baseTransitionJitter;
+      updateGatherTiming();
+      buildScene(currentWord);
     }
 
     function step(ts?: number) {
@@ -377,27 +978,30 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       (ctx as any).globalAlpha = 1;
 
       if (!prefersReduced) {
-        if (phase !== "exit") {
-          // 阶段切换
+        const prevPhase = phase;
+        if (phase !== "exit" && phase !== "idleScatter") {
           const morphT = dropDurationMs + morphDelayMs;
-          const newPhase: "drop" | "morph" =
-            elapsedMs >= morphT ? "morph" : "drop";
+          const newPhase: Phase = elapsedMs >= morphT ? "morph" : "drop";
           if (newPhase === "morph" && !wasMorph) morphElapsedMs = 0;
-          if (newPhase !== "morph")             morphElapsedMs = 0;
+          if (newPhase !== "morph") morphElapsedMs = 0;
           wasMorph = newPhase === "morph";
           phase = newPhase;
-        } else {
+          if (phase === "morph" && prevPhase !== "morph") {
+            markGatherStart(!introSettled && idleState === "inactive");
+          }
+        } else if (phase === "exit") {
           exitElapsedMs += dt;
+          wasMorph = false;
+        } else {
+          wasMorph = false;
         }
 
-        // 平滑鼠标
         const a = Math.min(0.9, CONFIG.mouseSmooth * fscale);
         smouse.x += (mouse.x - smouse.x) * a;
         smouse.y += (mouse.y - smouse.y) * a;
 
         for (const p of particles) {
           if (phase === "drop") {
-            // ——落地阶段——
             p.vy += gravity * 0.08 * fscale;
             p.x += p.vx * fscale; p.y += p.vy * fscale;
 
@@ -413,10 +1017,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
               else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
             } else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
           } else if (phase === "morph") {
-            // ——两阶段形态过渡——
             morphElapsedMs += dt;
 
-            // 轻微“挤开”
             let pushX = 0, pushY = 0;
             const dxm = p.x - smouse.x, dym = p.y - smouse.y;
             const r = CONFIG.mouseRepelRadius, d = Math.hypot(dxm, dym);
@@ -431,14 +1033,24 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
               pushX = ux * off; pushY = uy * off;
             }
 
-            // ——阶段性目标：funnel → out——
             const hubX = w * (CONFIG.funnelXFrac ?? 0.5);
             const hubY = h * (CONFIG.funnelYFrac ?? 0.5);
             const split = clamp01(CONFIG.funnelSplit ?? 0.45);
-            const tLocal = clamp01((morphElapsedMs - (p.d || 0)) / (CONFIG.transitionMs || 1200));
+            const tLocal = clamp01((morphElapsedMs - (p.d || 0)) / Math.max(1, activeTransitionMs));
 
             let targetX: number, targetY: number;
-            if (tLocal < split) {
+            const startX = p.gx ?? p.x;
+            const startY = p.gy ?? p.y;
+            const isIntroGather = !!p.introGather && !introSettled;
+
+            if (isIntroGather) {
+              const liftDenom = Math.max(1e-3, split);
+              const liftT = easeInOut(Math.min(1, tLocal / liftDenom));
+              const lateralBase = clamp01((tLocal - split * 0.55) / Math.max(1e-3, 1 - split * 0.55));
+              const lateralT = easeInOut(lateralBase);
+              targetX = startX + (p.tx - startX) * lateralT;
+              targetY = startY + (p.ty - startY) * liftT;
+            } else if (tLocal < split) {
               const u = easeInOut(tLocal / Math.max(1e-3, split));
               const currR = (p.hrad ?? (CONFIG.funnelRadiusPx ?? 18)) * (1 - u);
               const j = (CONFIG.funnelJitterPx ?? 6) * 0.05;
@@ -452,9 +1064,13 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
             targetX += pushX; targetY += pushY;
 
-            // 动态跟随强度（温和）
-            const baseK = 0.04;
-            const gainK = (typeof morphK === "number" ? morphK : 0.14);
+            const stiffnessScale = Math.max(
+              0.22,
+              Math.min(2.4, (baseTransitionMs || 1200) / Math.max(1, activeTransitionMs))
+            );
+            const baseK = 0.04 * stiffnessScale;
+            const gainBase = typeof morphK === "number" ? morphK : 0.14;
+            const gainK = gainBase * stiffnessScale;
             const kNow = baseK + easeInOut(tLocal) * gainK;
 
             const dx = targetX - p.x, dy = targetY - p.y;
@@ -462,16 +1078,72 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             p.x += dx * tt; p.y += dy * tt;
 
             if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
+          } else if (phase === "idleScatter") {
+            const swirlA = Math.sin((elapsedMs + p.tx * 7 + p.ty * 5) * 0.003) * 0.28;
+            const swirlB = Math.cos((elapsedMs * 0.0018 + p.ty * 9 - p.tx * 6) * 0.004) * 0.22;
+            const jitterX = Math.sin((elapsedMs + p.ty * 13) * 0.0023) * idleAmbientDrift * 0.12;
+            const jitterY = Math.cos((elapsedMs * 0.0026 + p.tx * 17) * 0.0021) * idleAmbientDrift * 0.12;
+            p.vx += ((swirlA * 0.06) + (swirlB * 0.11) + jitterX) * fscale;
+            p.vy += ((swirlB * 0.07) - (swirlA * 0.05) + jitterY) * fscale;
+            p.vx *= 0.984;
+            p.vy *= 0.984;
+            p.x += p.vx * fscale;
+            p.y += p.vy * fscale;
+            const margin = Math.max(18, gap * 2.2);
+            if (p.x < -margin) { p.x = -margin; p.vx *= -0.42; }
+            else if (p.x > w + margin) { p.x = w + margin; p.vx *= -0.42; }
+            if (p.y < -margin) { p.y = -margin; p.vy *= -0.36; }
+            else if (p.y > h + margin) { p.y = h + margin; p.vy *= -0.48; }
           } else {
-            // ——退出阶段：向四周喷散 + 淡出——
-            p.vy += gravity * 0.04 * fscale;
             p.vx *= 0.985;
             p.vy *= 0.985;
             p.x += p.vx * fscale;
             p.y += p.vy * fscale;
           }
         }
+
+        if (canIdleCycle()) {
+          if (!introSettled && phase === "morph" && morphElapsedMs > gatherCompleteMs) {
+            introSettled = true;
+            if (idleState === "inactive") startIdleHold();
+          }
+
+          if (idleState === "waiting") {
+            idleHoldElapsed += dt;
+            if (idleHoldElapsed >= idleHold) {
+              startIdleScatter();
+            }
+          } else if (idleState === "gust") {
+            idleScatterElapsed += dt;
+            if (idleScatterElapsed >= idleScatter) {
+              scheduleIdleGather();
+            }
+          } else if (idleState === "awaitGather") {
+            idleGatherDelayLeft -= dt;
+            if (idleGatherDelayLeft <= 0) {
+              beginIdleGather();
+            }
+          } else if (idleState === "gathering") {
+            if (phase === "morph" && morphElapsedMs > gatherCompleteMs) {
+              idleState = "waiting";
+              idleHoldElapsed = 0;
+            }
+          } else if (idleState === "inactive" && introSettled && phase === "morph" && morphElapsedMs > gatherCompleteMs) {
+            startIdleHold();
+          }
+        } else if (idleState !== "inactive" && phase !== "exit") {
+          idleState = "inactive";
+          if (phase === "idleScatter") {
+            retargetToWord(currentWord);
+          }
+        }
       } else {
+        if (idleState !== "inactive" && phase !== "exit") {
+          idleState = "inactive";
+          if (phase === "idleScatter") {
+            retargetToWord(currentWord);
+          }
+        }
         for (const p of particles) {
           if (phase === "exit") {
             p.x += p.vx ?? 0;
@@ -496,8 +1168,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         if (phase === "exit") {
           const fade = 1 - clamp01(exitElapsedMs / 1400);
           alpha = Math.max(0, fade);
-        } else if (wasMorph) {
-          const tLocal = clamp01((morphElapsedMs - (p.d || 0)) / (CONFIG.transitionMs || 1200));
+        } else if (phase === "idleScatter") {
+          const gustFade = 1 - clamp01(idleScatterElapsed / Math.max(1, idleScatter));
+          alpha = 0.6 + 0.4 * gustFade;
+        } else if (phase === "morph") {
+          const tLocal = clamp01((morphElapsedMs - (p.d || 0)) / Math.max(1, activeTransitionMs));
           alpha = 0.85 + 0.15 * easeInOut(tLocal);
         }
         (ctx as any).globalAlpha = alpha;
@@ -538,13 +1213,37 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     dropDurationMs, morphDelayMs,
     launchXFrac, launchYFrac, launchRadiusFrac,
     launchSpeed, launchSpeedJitter, launchAngleDeg, launchSpreadDeg,
-    glyphSizePx, morphK, dockMaxOffset
+    glyphSizePx, morphK, dockMaxOffset,
+    idleWords, idleHold, idleScatter, idleGatherDelay,
+    idleGustStrength, idleGustJitter, idleAmbientDrift, idleGatherTransitionMs
   ]);
 
   // ★ 当 word 变化时，触发“在位重定向”，产生两阶段的平滑过渡
   React.useEffect(() => {
-    retargetRef.current?.(word);
-  }, [word]);
+    if (wordInput == null) return;
+    if (typeof wordInput === "string") {
+      const match = idleWords.find(
+        (entry) =>
+          entry.label === wordInput ||
+          (entry.type === "text" && entry.text === wordInput)
+      );
+      if (match) {
+        if (match.type === "svg" && match.svg) {
+          retargetRef.current?.({
+            type: "svg",
+            path: match.svg.paths,
+            viewBox: match.svg.viewBox,
+            label: match.label,
+            fillRule: match.svg.fillRule
+          });
+          return;
+        }
+        retargetRef.current?.({ type: "text", text: match.text ?? wordInput, label: match.label });
+        return;
+      }
+    }
+    retargetRef.current?.(wordInput);
+  }, [wordInput, idleWords]);
 
   return (
     <div className="relative w-full h-full">
@@ -644,6 +1343,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
               launchSpreadDeg={CONFIG.launchSpreadDeg}
               morphK={morphK}
               dockMaxOffset={dockMaxOffset}
+              onWordChange={setWord}
             />
           </div>
           <h1 className="sr-only" aria-live="polite">{word}</h1>
