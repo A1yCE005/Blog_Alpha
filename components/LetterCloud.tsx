@@ -8,7 +8,7 @@ import type { PostSummary } from "@/lib/posts";
 
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
 const CONFIG = {
-  word: "Lighthosue",
+  word: "Lighthouse",
   fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto",
   fontWeight: 800,
 
@@ -50,7 +50,13 @@ const CONFIG = {
   funnelXFrac: 0.50,       // 汇聚点 X（相对宽度 0..1）
   funnelYFrac: 0.52,       // 汇聚点 Y（相对高度 0..1）
   funnelRadiusPx: 18,      // 汇聚束初始半径
-  funnelJitterPx: 6        // 汇聚时的轻微抖散
+  funnelJitterPx: 6,       // 汇聚时的轻微抖散
+
+  // 轮播
+  carouselWords: ["Lighthouse", "Halo", "Hi"],
+  carouselInitialDelayMs: 5200,
+  carouselIntervalMs: 5200,
+  carouselScatterMs: 900
 };
 
 function usePrefersReducedMotion() {
@@ -119,6 +125,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const tempRef = React.useRef<HTMLCanvasElement | null>(null);
   const readyRef = React.useRef(false);
+  const firstWordRef = React.useRef(true);
   const [ready, setReady] = React.useState(false);
   const prefersReduced = usePrefersReducedMotion();
   const glyphs = React.useMemo(() => CONFIG.bgGlyphs.split(""), []);
@@ -158,9 +165,10 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     };
     let particles: P[] = [];
 
-    let phase: "drop" | "morph" | "exit" = "drop";
+    let phase: "drop" | "scatter" | "morph" | "exit" = "drop";
     let wasMorph = false;
     let morphElapsedMs = 0;
+    let scatterElapsedMs = 0;
     let exitElapsedMs = 0;
 
     let elapsedMs = 0, lastTs = 0;
@@ -170,6 +178,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
     const TRANS_DUR = CONFIG.transitionMs ?? 1200;
     const TRANS_JIT = CONFIG.transitionJitterMs ?? 0;
+    const SCATTER_DUR = CONFIG.carouselScatterMs ?? 900;
 
     function ensureTempSize() {
       const rect = canvas.getBoundingClientRect();
@@ -329,12 +338,17 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         particles[i].hox = Math.cos(angR);
         particles[i].hoy = Math.sin(angR);
         particles[i].hrad = r0;
+        const scatterAng = Math.random() * Math.PI * 2;
+        const scatterSpeed = 2.6 + Math.random() * 3.8;
+        particles[i].vx = Math.cos(scatterAng) * scatterSpeed;
+        particles[i].vy = Math.sin(scatterAng) * scatterSpeed;
       }
 
-      // 进入 morph 并重置计时
-      phase = "morph";
+      // 进入散射阶段，随后再汇聚
+      phase = "scatter";
       wasMorph = false;
       morphElapsedMs = 0;
+      scatterElapsedMs = 0;
     }
 
     // 暴露给外层
@@ -377,18 +391,30 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       (ctx as any).globalAlpha = 1;
 
       if (!prefersReduced) {
-        if (phase !== "exit") {
-          // 阶段切换
+        if (phase === "drop") {
           const morphT = dropDurationMs + morphDelayMs;
-          const newPhase: "drop" | "morph" =
-            elapsedMs >= morphT ? "morph" : "drop";
-          if (newPhase === "morph" && !wasMorph) morphElapsedMs = 0;
-          if (newPhase !== "morph")             morphElapsedMs = 0;
-          wasMorph = newPhase === "morph";
-          phase = newPhase;
-        } else {
+          if (elapsedMs >= morphT) {
+            phase = "morph";
+            morphElapsedMs = 0;
+          }
+        } else if (phase === "scatter") {
+          scatterElapsedMs += dt;
+          if (scatterElapsedMs >= SCATTER_DUR) {
+            phase = "morph";
+            morphElapsedMs = 0;
+          }
+        } else if (phase === "exit") {
           exitElapsedMs += dt;
         }
+
+        if (phase === "morph") {
+          morphElapsedMs += dt;
+        } else {
+          morphElapsedMs = 0;
+        }
+
+        const phaseNow = phase;
+        wasMorph = phaseNow === "morph";
 
         // 平滑鼠标
         const a = Math.min(0.9, CONFIG.mouseSmooth * fscale);
@@ -396,7 +422,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         smouse.y += (mouse.y - smouse.y) * a;
 
         for (const p of particles) {
-          if (phase === "drop") {
+          if (phaseNow === "drop") {
             // ——落地阶段——
             p.vy += gravity * 0.08 * fscale;
             p.x += p.vx * fscale; p.y += p.vy * fscale;
@@ -412,10 +438,23 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
               if (p.x < wall) { p.x = wall; p.vx = -p.vx * 0.7; }
               else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
             } else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
-          } else if (phase === "morph") {
-            // ——两阶段形态过渡——
-            morphElapsedMs += dt;
+          } else if (phaseNow === "scatter") {
+            // ——轮播散射阶段——
+            p.vy += gravity * 0.045 * fscale;
+            p.vx *= 0.962;
+            p.vy *= 0.962;
+            p.x += p.vx * fscale;
+            p.y += p.vy * fscale;
 
+            const marginX = 12;
+            if (p.x < marginX) { p.x = marginX; p.vx = Math.abs(p.vx) * 0.68; }
+            else if (p.x > w - marginX) { p.x = w - marginX; p.vx = -Math.abs(p.vx) * 0.68; }
+            const ceiling = 16;
+            if (p.y < ceiling) { p.y = ceiling; p.vy = Math.abs(p.vy) * 0.62; }
+            const floor = h - 14;
+            if (p.y > floor) { p.y = floor; p.vy = -Math.abs(p.vy) * 0.58; }
+          } else if (phaseNow === "morph") {
+            // ——两阶段形态过渡——
             // 轻微“挤开”
             let pushX = 0, pushY = 0;
             const dxm = p.x - smouse.x, dym = p.y - smouse.y;
@@ -543,6 +582,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
   // ★ 当 word 变化时，触发“在位重定向”，产生两阶段的平滑过渡
   React.useEffect(() => {
+    if (!readyRef.current) return;
+    if (firstWordRef.current) {
+      firstWordRef.current = false;
+      return;
+    }
     retargetRef.current?.(word);
   }, [word]);
 
@@ -568,6 +612,10 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   const [morphK, setMorphK] = React.useState<number>(0.14);
   const [dockMaxOffset, setDockMaxOffset] = React.useState<number>(10);
   const [glyphSizePx, setGlyphSizePx] = React.useState<number | undefined>(undefined);
+
+  const carouselWords = React.useMemo(() => CONFIG.carouselWords ?? [], []);
+  const carouselTimerRef = React.useRef<number | undefined>(undefined);
+  const carouselIndexRef = React.useRef(0);
 
   const particlesRef = React.useRef<WordParticlesHandle | null>(null);
   const [hasEnteredBlog, setHasEnteredBlog] = React.useState(initialBlogView);
@@ -614,6 +662,45 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     setHasEnteredBlog(true);
     particlesRef.current?.triggerExit();
   }, [hasEnteredBlog, router]);
+
+  React.useEffect(() => {
+    const list = carouselWords;
+    if (hasEnteredBlog || heroRetired) {
+      if (carouselTimerRef.current) {
+        window.clearTimeout(carouselTimerRef.current);
+        carouselTimerRef.current = undefined;
+      }
+      return;
+    }
+    if (!Array.isArray(list) || list.length <= 1) return;
+
+    carouselIndexRef.current = 0;
+    setWord(list[0]);
+
+    const initialDelay = CONFIG.carouselInitialDelayMs ?? 5200;
+    const interval = CONFIG.carouselIntervalMs ?? 5200;
+
+    let active = true;
+    const schedule = (delay: number) => {
+      if (!active) return;
+      carouselTimerRef.current = window.setTimeout(() => {
+        if (!active) return;
+        carouselIndexRef.current = (carouselIndexRef.current + 1) % list.length;
+        setWord(list[carouselIndexRef.current]);
+        schedule(interval);
+      }, delay) as unknown as number;
+    };
+
+    schedule(initialDelay);
+
+    return () => {
+      active = false;
+      if (carouselTimerRef.current) {
+        window.clearTimeout(carouselTimerRef.current);
+        carouselTimerRef.current = undefined;
+      }
+    };
+  }, [carouselWords, hasEnteredBlog, heroRetired, setWord]);
 
   return (
     <div className="min-h-screen bg-black text-zinc-100">
