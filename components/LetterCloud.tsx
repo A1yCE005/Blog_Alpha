@@ -14,6 +14,10 @@ type SvgViewBoxInput =
 export type SvgWordSpec = {
   type?: "svg";
   svgPath?: string;
+  strokePath?: string | string[];
+  strokeWidth?: number;
+  strokeCap?: CanvasLineCap;
+  strokeJoin?: CanvasLineJoin;
   viewBox?: SvgViewBoxInput;
   label?: string;
   scale?: number;
@@ -35,6 +39,11 @@ type WordEntry = {
   scale: number;
   text?: string;
   path?: string;
+  strokePaths?: string[];
+  strokeWidth?: number;
+  strokeCap?: CanvasLineCap;
+  strokeJoin?: CanvasLineJoin;
+  combinedPath?: string;
   viewBox?: ParsedViewBox;
   fillRule?: CanvasFillRule;
 };
@@ -100,13 +109,30 @@ const createWordEntry = (spec: WordShape): WordEntry => {
     };
   }
 
-  const pathDataRaw =
+  const fillPath =
     typeof spec.svgPath === "string" && spec.svgPath.trim().length > 0
-      ? spec.svgPath
-      : typeof spec.path === "string"
-      ? spec.path
-      : "";
-  if (!pathDataRaw) {
+      ? spec.svgPath.trim()
+      : typeof spec.path === "string" && spec.path.trim().length > 0
+      ? spec.path.trim()
+      : undefined;
+  const strokeSource = spec.strokePath;
+  const strokePathsRaw = Array.isArray(strokeSource)
+    ? strokeSource
+    : typeof strokeSource === "string"
+    ? [strokeSource]
+    : [];
+  const strokePaths = strokePathsRaw
+    .map((d) => (typeof d === "string" ? d.trim() : ""))
+    .filter((d) => d.length > 0);
+  const combinedParts: string[] = [];
+  if (fillPath) {
+    combinedParts.push(fillPath);
+  }
+  if (strokePaths.length > 0) {
+    combinedParts.push(...strokePaths);
+  }
+  const combinedPath = combinedParts.join(" ");
+  if (!combinedPath) {
     const fallback = spec.label?.trim().length ? spec.label.trim() : "Shape";
     return {
       key: `text:${fallback}`,
@@ -131,14 +157,25 @@ const createWordEntry = (spec: WordShape): WordEntry => {
     : spec.viewBox
     ? String(spec.viewBox)
     : "auto";
+  const strokeWidth =
+    spec.strokeWidth !== undefined && Number.isFinite(spec.strokeWidth)
+      ? Math.max(0, spec.strokeWidth as number)
+      : undefined;
+  const strokeCap = spec.strokeCap ?? undefined;
+  const strokeJoin = spec.strokeJoin ?? undefined;
   return {
-    key: `svg:${pathDataRaw}|${viewBoxKey}|${safeScale}|${spec.fillRule ?? "nonzero"}`,
+    key: `svg:${combinedPath}|${viewBoxKey}|${safeScale}|${spec.fillRule ?? "nonzero"}|${strokeWidth ?? "auto"}|${strokeCap ?? "auto"}|${strokeJoin ?? "auto"}`,
     kind: "svg",
     label,
     source: spec,
     complexity: complexityBase,
     scale: safeScale,
-    path: pathDataRaw,
+    path: fillPath,
+    strokePaths,
+    strokeWidth,
+    strokeCap,
+    strokeJoin,
+    combinedPath,
     viewBox,
     fillRule: spec.fillRule ?? "nonzero"
   };
@@ -151,9 +188,25 @@ const toWordEntry = (input: WordInput): WordEntry => {
   return createWordEntry(input as WordShape);
 };
 
+const BLOG_ICON_SHAPE: SvgWordSpec = {
+  type: "svg",
+  label: "Blog icon",
+  svgPath:
+    "M16 4H48a12 12 0 0 1 12 12V48a12 12 0 0 1-12 12H16a12 12 0 0 1-12-12V16A12 12 0 0 1 16 4Z",
+  strokePath: [
+    "M16 16H48 M16 24H48 M16 32H48 M16 40H48 M16 48H48 M16 16V48 M24 16V48 M32 16V48 M40 16V48 M48 16V48",
+    "M20 44c0-10 8-18 18-18 6 0 10 4 10 10 0 8-8 14-16 14-10 0-16-8-16-18 0-12 10-22 22-22"
+  ],
+  strokeWidth: 2.4,
+  strokeCap: "round",
+  strokeJoin: "round",
+  viewBox: "0 0 64 64",
+  fillRule: "nonzero"
+};
+
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
 const CONFIG = {
-  word: "Lighthouse",
+  word: BLOG_ICON_SHAPE,
   fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto",
   fontWeight: 800,
 
@@ -198,7 +251,7 @@ const CONFIG = {
   funnelJitterPx: 6,       // 汇聚时的轻微抖散
 
   // 待机循环
-  idleWords: ["Lighthouse", "Halo", "Hi"],
+  idleWords: [BLOG_ICON_SHAPE, "Lighthouse", "Halo", "Hi"],
   idleHoldMs: 2800,
   idleScatterMs: 1400,
   idleGatherDelayMs: 520,
@@ -393,6 +446,21 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         if (entry.path) {
           match.path = entry.path;
         }
+        if (entry.strokePaths) {
+          match.strokePaths = entry.strokePaths.slice();
+        }
+        if (entry.strokeWidth !== undefined) {
+          match.strokeWidth = entry.strokeWidth;
+        }
+        if (entry.strokeCap) {
+          match.strokeCap = entry.strokeCap;
+        }
+        if (entry.strokeJoin) {
+          match.strokeJoin = entry.strokeJoin;
+        }
+        if (entry.combinedPath) {
+          match.combinedPath = entry.combinedPath;
+        }
         if (entry.viewBox) {
           match.viewBox = entry.viewBox;
         }
@@ -521,7 +589,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       if (cached && cached.width > 0 && cached.height > 0) {
         return cached;
       }
-      if (typeof document === "undefined" || !entry.path) {
+      const pathData = entry.combinedPath || entry.path;
+      if (typeof document === "undefined" || !pathData) {
         return cached;
       }
       try {
@@ -533,7 +602,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         svg.style.height = "0";
         svg.style.visibility = "hidden";
         const pathEl = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        pathEl.setAttribute("d", entry.path);
+        pathEl.setAttribute("d", pathData);
         svg.appendChild(pathEl);
         document.body.appendChild(svg);
         const bbox = pathEl.getBBox();
@@ -544,6 +613,17 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           width: Math.max(1e-3, bbox.width),
           height: Math.max(1e-3, bbox.height)
         };
+        if (entry.strokePaths && entry.strokePaths.length > 0) {
+          const inferredStroke =
+            entry.strokeWidth !== undefined && Number.isFinite(entry.strokeWidth)
+              ? Math.max(0, entry.strokeWidth)
+              : Math.max(bounds.width, bounds.height) * 0.03;
+          const pad = inferredStroke / 2;
+          bounds.minX -= pad;
+          bounds.minY -= pad;
+          bounds.width += pad * 2;
+          bounds.height += pad * 2;
+        }
         svgBoundsCache.set(entry.key, bounds);
         entry.viewBox = bounds;
         return bounds;
@@ -662,9 +742,14 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         return;
       }
 
-      if (entry.kind === "svg" && entry.path) {
+      if (entry.kind === "svg") {
         const bounds = ensureSvgBounds(entry);
         if (!bounds) {
+          return;
+        }
+        const hasFill = typeof entry.path === "string" && entry.path.length > 0;
+        const hasStroke = Array.isArray(entry.strokePaths) && entry.strokePaths.length > 0;
+        if (!hasFill && !hasStroke) {
           return;
         }
         const minSize = 12;
@@ -692,22 +777,42 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           }
         }
 
-        let path: Path2D;
-        try {
-          path = new Path2D(entry.path);
-        } catch (err) {
-          return;
-        }
         const centerX = (w / 2) * DPR;
         const centerY = (h / 2) * DPR;
         tctx.save();
         tctx.translate(centerX, centerY);
         tctx.scale(scale * DPR, scale * DPR);
         tctx.translate(-(bounds.minX + bounds.width / 2), -(bounds.minY + bounds.height / 2));
-        try {
-          tctx.fill(path, entry.fillRule ?? "nonzero");
-        } catch (err) {
-          tctx.fill(path);
+        if (hasFill) {
+          try {
+            const fillPath = new Path2D(entry.path!);
+            tctx.fillStyle = "white";
+            try {
+              tctx.fill(fillPath, entry.fillRule ?? "nonzero");
+            } catch (err) {
+              tctx.fill(fillPath);
+            }
+          } catch (err) {
+            // ignore fill errors
+          }
+        }
+        if (hasStroke) {
+          const strokeWidth =
+            entry.strokeWidth !== undefined && Number.isFinite(entry.strokeWidth)
+              ? Math.max(0, entry.strokeWidth)
+              : Math.max(bounds.width, bounds.height) * 0.03;
+          tctx.strokeStyle = "white";
+          tctx.lineWidth = strokeWidth;
+          tctx.lineCap = entry.strokeCap ?? "round";
+          tctx.lineJoin = entry.strokeJoin ?? "round";
+          for (const strokePath of entry.strokePaths!) {
+            try {
+              const spath = new Path2D(strokePath);
+              tctx.stroke(spath);
+            } catch (err) {
+              // ignore invalid stroke path
+            }
+          }
         }
         tctx.restore();
       }
