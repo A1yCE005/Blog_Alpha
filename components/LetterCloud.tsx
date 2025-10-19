@@ -314,6 +314,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       const h = canvas.height / DPR;
 
       // 调整粒子数量
+      const funnelRadius = CONFIG.funnelRadiusPx ?? 18;
+      const baseSplit = clamp01(CONFIG.funnelSplit ?? 0.45);
+      const splitMin = Math.max(0.1, baseSplit * 0.35);
+      const splitMax = Math.min(0.5, splitMin + 0.16);
+
       if (particles.length < need) {
         const jitter = gap * 1.6;
         const baseX = w * (CONFIG.funnelXFrac ?? 0.5);
@@ -321,7 +326,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         for (let i = particles.length; i < need; i++) {
           const t = targets[i];
           const angR = Math.random() * Math.PI * 2;
-          const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
+          const r0   = funnelRadius * (0.22 + Math.random() * 0.38);
           const angScatter = Math.random() * Math.PI * 2;
           const spScatter = SCATTER_SPEED * (0.7 + Math.random() * 0.6);
           particles.push({
@@ -333,24 +338,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             d: Math.random() * TRANS_JIT,
             c: glyphs[(Math.random() * glyphs.length) | 0],
             hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0,
-            split: undefined
+            split: splitMin + Math.random() * (splitMax - splitMin)
           });
         }
       } else if (particles.length > need) {
-        const keep = particles.length;
-        const jitter = gap * 0.9;
-        for (let i = need; i < keep; i++) {
-          const reuse = targets[i % need] ?? targets[targets.length - 1];
-          particles[i].tx = reuse.x + (Math.random() - 0.5) * jitter;
-          particles[i].ty = reuse.y + (Math.random() - 0.5) * jitter * 0.75;
-          particles[i].d = Math.random() * TRANS_JIT;
-          const angR = Math.random() * Math.PI * 2;
-          const r0 = (CONFIG.funnelRadiusPx ?? 18) * (0.25 + Math.random() * 0.55);
-          particles[i].hox = Math.cos(angR);
-          particles[i].hoy = Math.sin(angR);
-          particles[i].hrad = r0;
-          particles[i].split = 0.22 + Math.random() * 0.26;
-        }
+        particles.length = need;
       }
 
       const scatterJitter = gap * 0.9;
@@ -362,11 +354,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         particles[i].d  = Math.random() * TRANS_JIT;
 
         const angR = Math.random() * Math.PI * 2;
-        const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
+        const r0   = funnelRadius * (0.22 + Math.random() * 0.38);
         particles[i].hox = Math.cos(angR);
         particles[i].hoy = Math.sin(angR);
         particles[i].hrad = r0;
-        particles[i].split = 0.22 + Math.random() * 0.26;
+        particles[i].split = splitMin + Math.random() * (splitMax - splitMin);
 
         // 抛散速度
         const angScatter = Math.random() * Math.PI * 2;
