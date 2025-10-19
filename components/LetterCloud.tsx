@@ -8,7 +8,7 @@ import type { PostSummary } from "@/lib/posts";
 
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
 const CONFIG = {
-  word: "Lighthosue",
+  word: "lighthouse",
   fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto",
   fontWeight: 800,
 
@@ -562,8 +562,10 @@ type FullscreenHomeProps = {
   initialBlogView?: boolean;
 };
 
+const CAROUSEL_WORDS = ["lighthouse", "halo", "hi"];
+
 export default function FullscreenHome({ posts, initialBlogView = false }: FullscreenHomeProps) {
-  const [word, setWord] = React.useState(CONFIG.word);
+  const [word, setWord] = React.useState(() => CAROUSEL_WORDS[0] ?? CONFIG.word);
   const [gap, setGap] = React.useState(CONFIG.sampleGap);
   const [morphK, setMorphK] = React.useState<number>(0.14);
   const [dockMaxOffset, setDockMaxOffset] = React.useState<number>(10);
@@ -576,6 +578,9 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   const initialBlogRef = React.useRef(initialBlogView);
 
   const router = useRouter();
+
+  const carouselTimerRef = React.useRef<number | null>(null);
+  const carouselIndexRef = React.useRef(0);
 
   // 进入博客过渡控制
   const enterTimerRef = React.useRef<number | undefined>(undefined);
@@ -607,6 +612,51 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
       if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
     };
   }, []);
+
+  React.useEffect(() => {
+    if (hasEnteredBlog || heroRetired) {
+      if (carouselTimerRef.current !== null) {
+        window.clearTimeout(carouselTimerRef.current);
+        carouselTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (CAROUSEL_WORDS.length <= 1) return;
+
+    let cancelled = false;
+    carouselIndexRef.current = 0;
+    const firstWord = CAROUSEL_WORDS[0];
+    setWord((prev) => (prev === firstWord ? prev : firstWord));
+
+    const transitionMs = CONFIG.transitionMs ?? 1200;
+    const initialDelay = (CONFIG.dropDurationMs ?? 0) + (CONFIG.morphDelayMs ?? 0) + transitionMs + 800;
+    const cycleDelay = transitionMs + 2600;
+
+    const schedule = (delay: number) => {
+      if (carouselTimerRef.current !== null) {
+        window.clearTimeout(carouselTimerRef.current);
+      }
+      carouselTimerRef.current = window.setTimeout(() => {
+        if (cancelled || hasEnteredBlog || heroRetired) return;
+        carouselIndexRef.current = (carouselIndexRef.current + 1) % CAROUSEL_WORDS.length;
+        const nextWord = CAROUSEL_WORDS[carouselIndexRef.current];
+        setWord(nextWord);
+        particlesRef.current?.retarget(nextWord);
+        schedule(cycleDelay);
+      }, delay) as unknown as number;
+    };
+
+    schedule(initialDelay);
+
+    return () => {
+      cancelled = true;
+      if (carouselTimerRef.current !== null) {
+        window.clearTimeout(carouselTimerRef.current);
+        carouselTimerRef.current = null;
+      }
+    };
+  }, [hasEnteredBlog, heroRetired]);
 
   const handleEnterBlog = React.useCallback(() => {
     if (hasEnteredBlog) return;
