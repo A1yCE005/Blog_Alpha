@@ -8,7 +8,7 @@ import type { PostSummary } from "@/lib/posts";
 
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
 const CONFIG = {
-  word: "Lighthosue",
+  word: "Lighthouse",
   fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto",
   fontWeight: 800,
 
@@ -50,7 +50,16 @@ const CONFIG = {
   funnelXFrac: 0.50,       // 汇聚点 X（相对宽度 0..1）
   funnelYFrac: 0.52,       // 汇聚点 Y（相对高度 0..1）
   funnelRadiusPx: 18,      // 汇聚束初始半径
-  funnelJitterPx: 6        // 汇聚时的轻微抖散
+  funnelJitterPx: 6,       // 汇聚时的轻微抖散
+
+  // 待机循环（词云闲置时的风吹散效果）
+  idleGustDurationMs: 1500,
+  idleHoldMs: 2000,
+  idleGustAngleDeg: -65,
+  idleGustSpreadDeg: 46,
+  idleGustStrength: 7.4,
+  idleGustDrag: 0.88,
+  idleGustNoise: 1.2
 };
 
 function usePrefersReducedMotion() {
@@ -82,10 +91,12 @@ type WPProps = {
   morphK?: number;
   dockMaxOffset?: number;
   glyphSizePx?: number;            // 粒子字大小（px）
+  retargetKey?: number;
+  retargetMode?: "default" | "gust";
 };
 
 export type WordParticlesHandle = {
-  retarget(word: string): void;
+  retarget(word: string, opts?: { gust?: boolean }): void;
   triggerExit(): void;
 };
 
@@ -113,7 +124,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     outline = false,
     morphK,
     dockMaxOffset,
-    glyphSizePx
+    glyphSizePx,
+    retargetKey,
+    retargetMode
   } = props;
 
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
@@ -124,14 +137,14 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   const glyphs = React.useMemo(() => CONFIG.bgGlyphs.split(""), []);
 
   // 用于“在位重定向”与退出动画触发
-  const retargetRef = React.useRef<null | ((newWord: string) => void)>(null);
+  const retargetRef = React.useRef<null | ((newWord: string, opts?: { gust?: boolean }) => void)>(null);
   const exitTriggerRef = React.useRef<() => void>(() => {});
 
   React.useImperativeHandle(
     ref,
     () => ({
-      retarget(newWord: string) {
-        retargetRef.current?.(newWord);
+      retarget(newWord: string, options?: { gust?: boolean }) {
+        retargetRef.current?.(newWord, options);
       },
       triggerExit() {
         exitTriggerRef.current?.();
@@ -149,18 +162,21 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
     // 内部状态（不触发 React 渲染）
     let raf = 0;
+    type Phase = "drop" | "morph" | "gust" | "exit";
     type P = {
       x: number; y: number; vx: number; vy: number;
       tx: number; ty: number; c: string;
       d?: number;                 // 错峰延迟（ms）
       hox?: number; hoy?: number; // 汇聚方向单位向量
       hrad?: number;              // 汇聚初始半径
+      gphi?: number;              // 待机风噪声相位
+      gmag?: number;              // 待机风噪声幅度
     };
     let particles: P[] = [];
 
-    let phase: "drop" | "morph" | "exit" = "drop";
-    let wasMorph = false;
+    let phase: Phase = "drop";
     let morphElapsedMs = 0;
+    let gustElapsedMs = 0;
     let exitElapsedMs = 0;
 
     let elapsedMs = 0, lastTs = 0;
@@ -170,6 +186,14 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
     const TRANS_DUR = CONFIG.transitionMs ?? 1200;
     const TRANS_JIT = CONFIG.transitionJitterMs ?? 0;
+    const IDLE_GUST_DUR = CONFIG.idleGustDurationMs ?? 1500;
+    const IDLE_GUST_STRENGTH = CONFIG.idleGustStrength ?? 7.4;
+    const IDLE_GUST_SPREAD = (CONFIG.idleGustSpreadDeg ?? 46) * (Math.PI / 180);
+    const IDLE_GUST_DRAG = CONFIG.idleGustDrag ?? 0.88;
+    const IDLE_GUST_NOISE = CONFIG.idleGustNoise ?? 1.2;
+
+    let gustDirX = 0;
+    let gustDirY = -1;
 
     function ensureTempSize() {
       const rect = canvas.getBoundingClientRect();
@@ -292,7 +316,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     }
 
     /** ★ 在位重定向：仅更新目标，不清场、不重建循环 */
-    function retargetToWord(newWord: string) {
+    function retargetToWord(newWord: string, opts?: { gust?: boolean }) {
       if (phase === "exit") return;
       renderWordToTemp(newWord);
       const targets = sampleTargetsFromTemp(gap);
@@ -329,12 +353,32 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         particles[i].hox = Math.cos(angR);
         particles[i].hoy = Math.sin(angR);
         particles[i].hrad = r0;
+        particles[i].gphi = Math.random() * Math.PI * 2;
+        particles[i].gmag = 0.5 + Math.random() * IDLE_GUST_NOISE;
       }
 
-      // 进入 morph 并重置计时
-      phase = "morph";
-      wasMorph = false;
-      morphElapsedMs = 0;
+      const wantsGust = !!opts?.gust && !prefersReduced;
+      if (wantsGust) {
+        const baseAngDeg = CONFIG.idleGustAngleDeg ?? -65;
+        const gustAng = (baseAngDeg + (Math.random() - 0.5) * (CONFIG.idleGustSpreadDeg ?? 46) * 0.35) * (Math.PI / 180);
+        gustDirX = Math.cos(gustAng);
+        gustDirY = Math.sin(gustAng);
+
+        for (const p of particles) {
+          const jitterAng = gustAng + (Math.random() - 0.5) * IDLE_GUST_SPREAD;
+          const speed = IDLE_GUST_STRENGTH * (0.6 + Math.random() * 0.9);
+          p.vx = Math.cos(jitterAng) * speed;
+          p.vy = Math.sin(jitterAng) * speed - 0.8;
+        }
+
+        phase = "gust";
+        gustElapsedMs = 0;
+        morphElapsedMs = 0;
+      } else {
+        phase = "morph";
+        morphElapsedMs = 0;
+        gustElapsedMs = 0;
+      }
     }
 
     // 暴露给外层
@@ -377,17 +421,27 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       (ctx as any).globalAlpha = 1;
 
       if (!prefersReduced) {
-        if (phase !== "exit") {
-          // 阶段切换
+        if (phase === "drop") {
           const morphT = dropDurationMs + morphDelayMs;
-          const newPhase: "drop" | "morph" =
-            elapsedMs >= morphT ? "morph" : "drop";
-          if (newPhase === "morph" && !wasMorph) morphElapsedMs = 0;
-          if (newPhase !== "morph")             morphElapsedMs = 0;
-          wasMorph = newPhase === "morph";
-          phase = newPhase;
-        } else {
+          if (elapsedMs >= morphT) {
+            phase = "morph";
+            morphElapsedMs = 0;
+          }
+        } else if (phase === "gust") {
+          gustElapsedMs += dt;
+          if (gustElapsedMs >= IDLE_GUST_DUR) {
+            gustElapsedMs = IDLE_GUST_DUR;
+            phase = "morph";
+            morphElapsedMs = 0;
+            for (const p of particles) {
+              p.vx *= 0.32;
+              p.vy *= 0.32;
+            }
+          }
+        } else if (phase === "exit") {
           exitElapsedMs += dt;
+        } else if (phase === "morph") {
+          morphElapsedMs += dt;
         }
 
         // 平滑鼠标
@@ -412,10 +466,31 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
               if (p.x < wall) { p.x = wall; p.vx = -p.vx * 0.7; }
               else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
             } else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
+          } else if (phase === "gust") {
+            // ——待机吹散阶段——
+            const gustT = clamp01(gustElapsedMs / Math.max(1, IDLE_GUST_DUR));
+            const ease = easeInOut(gustT);
+            const swirl = Math.sin((gustElapsedMs * 0.004) + (p.gphi ?? 0)) * (p.gmag ?? 0.8);
+            const crossX = -gustDirY * swirl;
+            const crossY = gustDirX * swirl;
+
+            p.vx += (gustDirX * 0.12 + crossX * 0.18) * fscale;
+            p.vy += (gustDirY * 0.12 + crossY * 0.18) * fscale - 0.015 * (1 - ease);
+
+            const drag = IDLE_GUST_DRAG + ease * 0.09;
+            p.vx *= drag;
+            p.vy *= drag;
+
+            p.x += p.vx * fscale;
+            p.y += p.vy * fscale;
+
+            const margin = 32;
+            if (p.x < -margin) p.x = -margin;
+            if (p.x > w + margin) p.x = w + margin;
+            if (p.y < -margin * 1.5) p.y = -margin * 1.5;
+            if (p.y > h + margin) p.y = h + margin;
           } else if (phase === "morph") {
             // ——两阶段形态过渡——
-            morphElapsedMs += dt;
-
             // 轻微“挤开”
             let pushX = 0, pushY = 0;
             const dxm = p.x - smouse.x, dym = p.y - smouse.y;
@@ -496,9 +571,12 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         if (phase === "exit") {
           const fade = 1 - clamp01(exitElapsedMs / 1400);
           alpha = Math.max(0, fade);
-        } else if (wasMorph) {
+        } else if (phase === "morph") {
           const tLocal = clamp01((morphElapsedMs - (p.d || 0)) / (CONFIG.transitionMs || 1200));
           alpha = 0.85 + 0.15 * easeInOut(tLocal);
+        } else if (phase === "gust") {
+          const gustT = clamp01(gustElapsedMs / Math.max(1, IDLE_GUST_DUR));
+          alpha = 0.7 + 0.3 * (1 - gustT * 0.6);
         }
         (ctx as any).globalAlpha = alpha;
         if (outline) { ctx.lineWidth = 1; (ctx as any).strokeStyle = "rgba(0,0,0,0.6)"; ctx.strokeText(p.c, p.x, p.y); }
@@ -543,8 +621,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
   // ★ 当 word 变化时，触发“在位重定向”，产生两阶段的平滑过渡
   React.useEffect(() => {
-    retargetRef.current?.(word);
-  }, [word]);
+    const opts = retargetMode === "gust" ? { gust: true } : undefined;
+    retargetRef.current?.(word, opts);
+  }, [word, retargetMode, retargetKey]);
 
   return (
     <div className="relative w-full h-full">
@@ -563,27 +642,96 @@ type FullscreenHomeProps = {
 };
 
 export default function FullscreenHome({ posts, initialBlogView = false }: FullscreenHomeProps) {
+  const idleWords = React.useMemo(() => ["Lighthouse", "Halo", "Hi"], []);
   const [word, setWord] = React.useState(CONFIG.word);
   const [gap, setGap] = React.useState(CONFIG.sampleGap);
   const [morphK, setMorphK] = React.useState<number>(0.14);
   const [dockMaxOffset, setDockMaxOffset] = React.useState<number>(10);
   const [glyphSizePx, setGlyphSizePx] = React.useState<number | undefined>(undefined);
+  const [retargetMode, setRetargetMode] = React.useState<"default" | "gust">("default");
+  const [retargetKey, setRetargetKey] = React.useState(0);
 
   const particlesRef = React.useRef<WordParticlesHandle | null>(null);
   const [hasEnteredBlog, setHasEnteredBlog] = React.useState(initialBlogView);
   const [blogVisible, setBlogVisible] = React.useState(initialBlogView);
   const [heroRetired, setHeroRetired] = React.useState(initialBlogView);
   const initialBlogRef = React.useRef(initialBlogView);
+  const idleIndexRef = React.useRef(Math.max(0, idleWords.indexOf(CONFIG.word)));
+  const idleTimerRef = React.useRef<number | undefined>(undefined);
+  const currentWordRef = React.useRef(CONFIG.word);
 
   const router = useRouter();
+  const prefersReduced = usePrefersReducedMotion();
 
   // 进入博客过渡控制
   const enterTimerRef = React.useRef<number | undefined>(undefined);
 
+  React.useEffect(() => {
+    currentWordRef.current = word;
+  }, [word]);
 
+  React.useEffect(() => {
+    if (prefersReduced) return;
+    if (hasEnteredBlog) return;
+
+    const dropTotal = (CONFIG.dropDurationMs ?? 0) + (CONFIG.morphDelayMs ?? 0) + (CONFIG.transitionMs ?? 1200);
+    const initialDelay = dropTotal + 900;
+    const cycleInterval =
+      (CONFIG.idleHoldMs ?? 2000) +
+      (CONFIG.idleGustDurationMs ?? 1500) +
+      (CONFIG.transitionMs ?? 1200);
+
+    let cancelled = false;
+
+    const schedule = (delay: number) => {
+      if (idleTimerRef.current) {
+        window.clearTimeout(idleTimerRef.current);
+      }
+      idleTimerRef.current = window.setTimeout(() => {
+        if (cancelled || hasEnteredBlog) return;
+        if (idleWords.length <= 1) {
+          schedule(cycleInterval);
+          return;
+        }
+
+        const current = currentWordRef.current;
+        const currentIndex = idleWords.indexOf(current);
+        if (currentIndex >= 0) {
+          idleIndexRef.current = currentIndex;
+        }
+
+        const nextIndex = (idleIndexRef.current + 1) % idleWords.length;
+        idleIndexRef.current = nextIndex;
+        const nextWord = idleWords[nextIndex];
+
+        if (nextWord === current) {
+          schedule(cycleInterval);
+          return;
+        }
+
+        currentWordRef.current = nextWord;
+        setRetargetMode("gust");
+        setWord(nextWord);
+        setRetargetKey((key) => key + 1);
+
+        schedule(cycleInterval);
+      }, delay) as unknown as number;
+    };
+
+    schedule(initialDelay);
+
+    return () => {
+      cancelled = true;
+      if (idleTimerRef.current) {
+        window.clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = undefined;
+      }
+    };
+  }, [hasEnteredBlog, idleWords, prefersReduced]);
 
   React.useEffect(() => {
     if (!hasEnteredBlog) return;
+    setRetargetMode("default");
     setWord(CONFIG.word);
 
     if (initialBlogRef.current) {
@@ -644,6 +792,8 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
               launchSpreadDeg={CONFIG.launchSpreadDeg}
               morphK={morphK}
               dockMaxOffset={dockMaxOffset}
+              retargetKey={retargetKey}
+              retargetMode={retargetMode}
             />
           </div>
           <h1 className="sr-only" aria-live="polite">{word}</h1>
