@@ -81,6 +81,7 @@ const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t 
 
 type WPProps = {
   word?: string;
+  wordScale?: number;
   gap?: number;
   letterSpacing?: number;
   gravity?: number; bounce?: number; groundFriction?: number;
@@ -111,6 +112,7 @@ export type WordParticlesHandle = {
 const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function WordParticles(props, ref) {
   const {
     word = CONFIG.word,
+    wordScale = CONFIG.wordScale,
     gap = CONFIG.sampleGap,
     letterSpacing = CONFIG.letterSpacing,
 
@@ -150,6 +152,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   const [ready, setReady] = React.useState(false);
   const prefersReduced = usePrefersReducedMotion();
   const glyphs = React.useMemo(() => CONFIG.bgGlyphs.split(""), []);
+  const effectiveWordScale = typeof wordScale === "number" ? wordScale : CONFIG.wordScale;
   const idleWords = React.useMemo(
     () => (idleWordsProp && idleWordsProp.length > 0 ? idleWordsProp : CONFIG.idleWords || []),
     [idleWordsProp]
@@ -211,6 +214,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       canvasH: number;
       gap: number;
       letterSpacing: number;
+      wordScale: number;
       count: number;
       targets: Array<{ x: number; y: number }>;
     };
@@ -350,7 +354,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       const minSize = 12;
       const maxHeight = Math.max(minSize, h * 0.9);
       const targetW = w * 0.85;
-      const baseSize = Math.floor(Math.min(w, h) * CONFIG.wordScale);
+      const baseSize = Math.floor(Math.min(w, h) * effectiveWordScale);
 
       const measureWord = (sz: number) => {
         const glyphWidths: number[] = new Array(text.length);
@@ -496,6 +500,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         cached.canvasH === canvas.height &&
         Math.abs(cached.gap - gap) < 1e-6 &&
         Math.abs(cached.letterSpacing - letterSpacing) < 1e-6 &&
+        Math.abs(cached.wordScale - effectiveWordScale) < 1e-6 &&
         (!desiredCount || cached.count >= desiredCount);
       if (matches) {
         return cached.targets;
@@ -508,6 +513,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         canvasH: canvas.height,
         gap,
         letterSpacing,
+        wordScale: effectiveWordScale,
         count: targets.length,
         targets
       });
@@ -1050,7 +1056,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     // 注意：不要把 word 放进依赖，否则切换时会重建动画导致闪烁
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    gap, letterSpacing,
+    wordScale, gap, letterSpacing,
     gravity, bounce, groundFriction,
     dropDurationMs, morphDelayMs,
     launchXFrac, launchYFrac, launchRadiusFrac,
@@ -1090,6 +1096,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   const [morphK, setMorphK] = React.useState<number>(0.14);
   const [dockMaxOffset, setDockMaxOffset] = React.useState<number>(10);
   const [glyphSizePx, setGlyphSizePx] = React.useState<number | undefined>(undefined);
+  const [wordScale, setWordScale] = React.useState(CONFIG.wordScale);
 
   const particlesRef = React.useRef<WordParticlesHandle | null>(null);
   const [hasEnteredBlog, setHasEnteredBlog] = React.useState(initialBlogView);
@@ -1139,15 +1146,18 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
 
   React.useEffect(() => {
     const mq = window.matchMedia("(max-width: 768px)");
+    const baseGlyph = Math.max(8, Math.floor(CONFIG.sampleGap * 1.4));
     const applyResponsiveTuning = (isMobile: boolean) => {
       if (isMobile) {
-        const mobileGap = CONFIG.sampleGap * 0.55;
-        setGap(mobileGap);
+        const scaleFactor = 0.82;
+        setWordScale(CONFIG.wordScale * scaleFactor);
+        setGap(CONFIG.sampleGap * scaleFactor);
         setLetterSpacing(CONFIG.letterSpacing * 0.6);
-        setGlyphSizePx(Math.max(5, Math.round(mobileGap * 1.35)));
-        setDropDurationMs(Math.round(CONFIG.dropDurationMs * 0.82));
-        setMorphDelayMs(Math.round(CONFIG.morphDelayMs * 0.82));
+        setGlyphSizePx(Math.max(6, Math.round(baseGlyph * scaleFactor)));
+        setDropDurationMs(CONFIG.dropDurationMs);
+        setMorphDelayMs(CONFIG.morphDelayMs);
       } else {
+        setWordScale(CONFIG.wordScale);
         setGap(CONFIG.sampleGap);
         setLetterSpacing(CONFIG.letterSpacing);
         setGlyphSizePx(undefined);
@@ -1185,6 +1195,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
             <WordParticles
               ref={particlesRef}
               word={word}
+              wordScale={wordScale}
               gap={gap}
               letterSpacing={letterSpacing}
               glyphSizePx={glyphSizePx}
