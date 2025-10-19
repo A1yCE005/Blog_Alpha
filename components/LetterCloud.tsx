@@ -8,7 +8,7 @@ import type { PostSummary } from "@/lib/posts";
 
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
 const CONFIG = {
-  word: "Lighthosue",
+  word: "lighthouse",
   fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto",
   fontWeight: 800,
 
@@ -158,10 +158,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     };
     let particles: P[] = [];
 
-    let phase: "drop" | "morph" | "exit" = "drop";
+    let phase: "drop" | "morph" | "retarget" | "exit" = "drop";
     let wasMorph = false;
     let morphElapsedMs = 0;
     let exitElapsedMs = 0;
+    let retargetElapsedMs = 0;
 
     let elapsedMs = 0, lastTs = 0;
 
@@ -318,6 +319,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         particles = particles.slice(0, need);
       }
 
+      const w = canvas.width / DPR;
+      const h = canvas.height / DPR;
+      const hubX = w * (CONFIG.funnelXFrac ?? 0.5);
+      const hubY = h * (CONFIG.funnelYFrac ?? 0.5);
+
       // 写入新目标 & 刷新错峰与汇聚方向
       for (let i = 0; i < need; i++) {
         particles[i].tx = targets[i].x;
@@ -329,12 +335,30 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         particles[i].hox = Math.cos(angR);
         particles[i].hoy = Math.sin(angR);
         particles[i].hrad = r0;
+
+        if (!prefersReduced) {
+          const dx = particles[i].x - hubX;
+          const dy = particles[i].y - hubY;
+          const baseAngle = Math.atan2(dy, dx);
+          const burstAngle =
+            Number.isFinite(baseAngle) ? baseAngle + (Math.random() - 0.5) * 0.9 : Math.random() * Math.PI * 2;
+          const burstSpeed = 6.5 + Math.random() * 6.5;
+          particles[i].vx = Math.cos(burstAngle) * burstSpeed;
+          particles[i].vy = Math.sin(burstAngle) * burstSpeed - 1.2;
+        } else {
+          particles[i].vx = 0;
+          particles[i].vy = 0;
+        }
       }
 
-      // 进入 morph 并重置计时
-      phase = "morph";
-      wasMorph = false;
-      morphElapsedMs = 0;
+      if (prefersReduced) {
+        phase = "morph";
+        wasMorph = false;
+        morphElapsedMs = 0;
+      } else {
+        phase = "retarget";
+        retargetElapsedMs = 0;
+      }
     }
 
     // 暴露给外层
@@ -394,6 +418,14 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         const a = Math.min(0.9, CONFIG.mouseSmooth * fscale);
         smouse.x += (mouse.x - smouse.x) * a;
         smouse.y += (mouse.y - smouse.y) * a;
+
+        const RETARGET_BURST_MS = 720;
+        const RETARGET_PAUSE_MS = 160;
+        if (phase === "retarget") {
+          retargetElapsedMs += dt;
+        }
+        const shouldGather =
+          phase === "retarget" && retargetElapsedMs >= RETARGET_BURST_MS + RETARGET_PAUSE_MS;
 
         for (const p of particles) {
           if (phase === "drop") {
@@ -462,6 +494,18 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             p.x += dx * tt; p.y += dy * tt;
 
             if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
+          } else if (phase === "retarget") {
+            // ——重定向阶段：先喷散再回收——
+            const drag = Math.pow(0.86, fscale);
+            const buoyancy = gravity * 0.016 * fscale;
+            p.vx *= drag;
+            p.vy = p.vy * drag + buoyancy;
+            p.x += p.vx * fscale;
+            p.y += p.vy * fscale;
+            if (retargetElapsedMs < RETARGET_BURST_MS) {
+              p.vx += (Math.random() - 0.5) * 0.2 * fscale;
+              p.vy += (Math.random() - 0.5) * 0.2 * fscale;
+            }
           } else {
             // ——退出阶段：向四周喷散 + 淡出——
             p.vy += gravity * 0.04 * fscale;
@@ -470,6 +514,17 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             p.x += p.vx * fscale;
             p.y += p.vy * fscale;
           }
+        }
+
+        if (shouldGather) {
+          for (const p of particles) {
+            p.vx = 0;
+            p.vy = 0;
+          }
+          retargetElapsedMs = 0;
+          phase = "morph";
+          wasMorph = false;
+          morphElapsedMs = 0;
         }
       } else {
         for (const p of particles) {
@@ -562,8 +617,10 @@ type FullscreenHomeProps = {
   initialBlogView?: boolean;
 };
 
+const CAROUSEL_WORDS = ["lighthouse", "halo", "hi"];
+
 export default function FullscreenHome({ posts, initialBlogView = false }: FullscreenHomeProps) {
-  const [word, setWord] = React.useState(CONFIG.word);
+  const [word, setWord] = React.useState(() => CAROUSEL_WORDS[0] ?? CONFIG.word);
   const [gap, setGap] = React.useState(CONFIG.sampleGap);
   const [morphK, setMorphK] = React.useState<number>(0.14);
   const [dockMaxOffset, setDockMaxOffset] = React.useState<number>(10);
@@ -576,6 +633,9 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   const initialBlogRef = React.useRef(initialBlogView);
 
   const router = useRouter();
+
+  const carouselTimerRef = React.useRef<number | null>(null);
+  const carouselIndexRef = React.useRef(0);
 
   // 进入博客过渡控制
   const enterTimerRef = React.useRef<number | undefined>(undefined);
@@ -607,6 +667,51 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
       if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
     };
   }, []);
+
+  React.useEffect(() => {
+    if (hasEnteredBlog || heroRetired) {
+      if (carouselTimerRef.current !== null) {
+        window.clearTimeout(carouselTimerRef.current);
+        carouselTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (CAROUSEL_WORDS.length <= 1) return;
+
+    let cancelled = false;
+    carouselIndexRef.current = 0;
+    const firstWord = CAROUSEL_WORDS[0];
+    setWord((prev) => (prev === firstWord ? prev : firstWord));
+
+    const transitionMs = CONFIG.transitionMs ?? 1200;
+    const initialDelay = (CONFIG.dropDurationMs ?? 0) + (CONFIG.morphDelayMs ?? 0) + transitionMs + 800;
+    const cycleDelay = transitionMs + 2600;
+
+    const schedule = (delay: number) => {
+      if (carouselTimerRef.current !== null) {
+        window.clearTimeout(carouselTimerRef.current);
+      }
+      carouselTimerRef.current = window.setTimeout(() => {
+        if (cancelled || hasEnteredBlog || heroRetired) return;
+        carouselIndexRef.current = (carouselIndexRef.current + 1) % CAROUSEL_WORDS.length;
+        const nextWord = CAROUSEL_WORDS[carouselIndexRef.current];
+        setWord(nextWord);
+        particlesRef.current?.retarget(nextWord);
+        schedule(cycleDelay);
+      }, delay) as unknown as number;
+    };
+
+    schedule(initialDelay);
+
+    return () => {
+      cancelled = true;
+      if (carouselTimerRef.current !== null) {
+        window.clearTimeout(carouselTimerRef.current);
+        carouselTimerRef.current = null;
+      }
+    };
+  }, [hasEnteredBlog, heroRetired]);
 
   const handleEnterBlog = React.useCallback(() => {
     if (hasEnteredBlog) return;
