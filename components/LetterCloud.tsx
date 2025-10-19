@@ -8,7 +8,7 @@ import type { PostSummary } from "@/lib/posts";
 
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
 const CONFIG = {
-  word: "Lighthosue",
+  word: "lighthouse",
   fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto",
   fontWeight: 800,
 
@@ -50,8 +50,15 @@ const CONFIG = {
   funnelXFrac: 0.50,       // 汇聚点 X（相对宽度 0..1）
   funnelYFrac: 0.52,       // 汇聚点 Y（相对高度 0..1）
   funnelRadiusPx: 18,      // 汇聚束初始半径
-  funnelJitterPx: 6        // 汇聚时的轻微抖散
+  funnelJitterPx: 6,       // 汇聚时的轻微抖散
+
+  // 轮播时的再次抛撒
+  scatterDurationMs: 900,
+  scatterDamping: 0.92,
+  scatterSpeed: 6.4
 };
+
+const HERO_WORDS = ["lighthouse", "halo", "hi"];
 
 function usePrefersReducedMotion() {
   const [prefers, setPrefers] = React.useState(false);
@@ -158,10 +165,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     };
     let particles: P[] = [];
 
-    let phase: "drop" | "morph" | "exit" = "drop";
+    let phase: "drop" | "morph" | "scatter" | "exit" = "drop";
     let wasMorph = false;
     let morphElapsedMs = 0;
     let exitElapsedMs = 0;
+    let scatterElapsedMs = 0;
 
     let elapsedMs = 0, lastTs = 0;
 
@@ -170,6 +178,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
     const TRANS_DUR = CONFIG.transitionMs ?? 1200;
     const TRANS_JIT = CONFIG.transitionJitterMs ?? 0;
+    const SCATTER_DUR = CONFIG.scatterDurationMs ?? 900;
+    const SCATTER_DAMP = CONFIG.scatterDamping ?? 0.92;
+    const SCATTER_SPEED = CONFIG.scatterSpeed ?? 6.2;
 
     function ensureTempSize() {
       const rect = canvas.getBoundingClientRect();
@@ -297,18 +308,26 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       renderWordToTemp(newWord);
       const targets = sampleTargetsFromTemp(gap);
       const need = targets.length;
+      const w = canvas.width / DPR;
+      const h = canvas.height / DPR;
 
       // 调整粒子数量
       if (particles.length < need) {
-        const jitter = gap * 1.2;
+        const jitter = gap * 1.6;
+        const baseX = w * (CONFIG.funnelXFrac ?? 0.5);
+        const baseY = h * (CONFIG.funnelYFrac ?? 0.5);
         for (let i = particles.length; i < need; i++) {
           const t = targets[i];
           const angR = Math.random() * Math.PI * 2;
           const r0   = (CONFIG.funnelRadiusPx ?? 18) * (0.4 + Math.random() * 0.6);
+          const angScatter = Math.random() * Math.PI * 2;
+          const spScatter = SCATTER_SPEED * (0.7 + Math.random() * 0.6);
           particles.push({
-            x: t.x + (Math.random() - 0.5) * jitter,
-            y: t.y + (Math.random() - 0.5) * jitter,
-            vx: 0, vy: 0, tx: t.x, ty: t.y,
+            x: baseX + (Math.random() - 0.5) * jitter,
+            y: baseY + (Math.random() - 0.5) * jitter,
+            vx: Math.cos(angScatter) * spScatter,
+            vy: Math.sin(angScatter) * spScatter,
+            tx: t.x, ty: t.y,
             d: Math.random() * TRANS_JIT,
             c: glyphs[(Math.random() * glyphs.length) | 0],
             hox: Math.cos(angR), hoy: Math.sin(angR), hrad: r0
@@ -317,6 +336,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       } else if (particles.length > need) {
         particles = particles.slice(0, need);
       }
+
+      const scatterJitter = gap * 0.9;
 
       // 写入新目标 & 刷新错峰与汇聚方向
       for (let i = 0; i < need; i++) {
@@ -329,12 +350,22 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         particles[i].hox = Math.cos(angR);
         particles[i].hoy = Math.sin(angR);
         particles[i].hrad = r0;
+
+        // 抛散速度
+        const angScatter = Math.random() * Math.PI * 2;
+        const spScatter = SCATTER_SPEED * (0.7 + Math.random() * 0.6);
+        particles[i].vx = Math.cos(angScatter) * spScatter;
+        particles[i].vy = Math.sin(angScatter) * spScatter * 0.8 - 0.6;
+        particles[i].x += (Math.random() - 0.5) * scatterJitter;
+        particles[i].y += (Math.random() - 0.5) * scatterJitter;
       }
 
-      // 进入 morph 并重置计时
-      phase = "morph";
+      // 进入 scatter → morph 并重置计时
+      phase = "scatter";
+      scatterElapsedMs = 0;
       wasMorph = false;
       morphElapsedMs = 0;
+      elapsedMs = dropDurationMs + morphDelayMs;
     }
 
     // 暴露给外层
@@ -377,7 +408,22 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       (ctx as any).globalAlpha = 1;
 
       if (!prefersReduced) {
-        if (phase !== "exit") {
+        if (phase === "scatter") {
+          scatterElapsedMs += dt;
+          if (scatterElapsedMs >= SCATTER_DUR) {
+            scatterElapsedMs = 0;
+            wasMorph = false;
+            morphElapsedMs = 0;
+            elapsedMs = dropDurationMs + morphDelayMs;
+            for (const p of particles) {
+              p.vx *= 0.25;
+              p.vy *= 0.25;
+            }
+            phase = "morph";
+          }
+        } else if (phase === "exit") {
+          exitElapsedMs += dt;
+        } else {
           // 阶段切换
           const morphT = dropDurationMs + morphDelayMs;
           const newPhase: "drop" | "morph" =
@@ -386,8 +432,6 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           if (newPhase !== "morph")             morphElapsedMs = 0;
           wasMorph = newPhase === "morph";
           phase = newPhase;
-        } else {
-          exitElapsedMs += dt;
         }
 
         // 平滑鼠标
@@ -462,6 +506,20 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             p.x += dx * tt; p.y += dy * tt;
 
             if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
+          } else if (phase === "scatter") {
+            // ——轮播抛散阶段——
+            p.vy += gravity * 0.05 * fscale;
+            const damp = Math.pow(SCATTER_DAMP, fscale);
+            p.vx *= damp;
+            p.vy *= damp;
+            p.x += p.vx * fscale;
+            p.y += p.vy * fscale;
+
+            const wall = 12;
+            if (p.x < wall) { p.x = wall; p.vx = Math.abs(p.vx) * 0.6; }
+            else if (p.x > w - wall) { p.x = w - wall; p.vx = -Math.abs(p.vx) * 0.6; }
+            if (p.y < wall) { p.y = wall; p.vy = Math.abs(p.vy) * 0.4; }
+            else if (p.y > h - wall) { p.y = h - wall; p.vy = -Math.abs(p.vy) * 0.6; }
           } else {
             // ——退出阶段：向四周喷散 + 淡出——
             p.vy += gravity * 0.04 * fscale;
@@ -479,6 +537,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           } else {
             p.x = p.tx; p.y = p.ty;
           }
+        }
+        if (phase === "exit") {
+          exitElapsedMs += dt;
         }
       }
 
@@ -542,7 +603,14 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   ]);
 
   // ★ 当 word 变化时，触发“在位重定向”，产生两阶段的平滑过渡
+  const prevWordRef = React.useRef<string | null>(null);
   React.useEffect(() => {
+    if (prevWordRef.current === null) {
+      prevWordRef.current = word;
+      return;
+    }
+    if (prevWordRef.current === word) return;
+    prevWordRef.current = word;
     retargetRef.current?.(word);
   }, [word]);
 
@@ -576,6 +644,45 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   const initialBlogRef = React.useRef(initialBlogView);
 
   const router = useRouter();
+
+  const carouselTimerRef = React.useRef<number | undefined>(undefined);
+  const hasEnteredBlogRef = React.useRef(hasEnteredBlog);
+
+  React.useEffect(() => {
+    hasEnteredBlogRef.current = hasEnteredBlog;
+  }, [hasEnteredBlog]);
+
+  React.useEffect(() => {
+    if (initialBlogView) return;
+    if (hasEnteredBlog) return;
+    if (HERO_WORDS.length <= 1) return;
+
+    let index = 0;
+    const dropT = CONFIG.dropDurationMs ?? 1800;
+    const morphLag = CONFIG.morphDelayMs ?? 1600;
+    const morphTrans = CONFIG.transitionMs ?? 1200;
+    const scatterDur = CONFIG.scatterDurationMs ?? 900;
+    const initialDelay = dropT + morphLag + morphTrans + scatterDur + 800;
+    const repeatDelay = morphTrans + scatterDur + 2600;
+
+    const schedule = (delay: number) => {
+      carouselTimerRef.current = window.setTimeout(() => {
+        if (hasEnteredBlogRef.current) return;
+        index = (index + 1) % HERO_WORDS.length;
+        setWord(HERO_WORDS[index]);
+        schedule(repeatDelay);
+      }, delay) as unknown as number;
+    };
+
+    schedule(initialDelay);
+
+    return () => {
+      if (carouselTimerRef.current != null) {
+        window.clearTimeout(carouselTimerRef.current);
+        carouselTimerRef.current = undefined;
+      }
+    };
+  }, [hasEnteredBlog, initialBlogView]);
 
   // 进入博客过渡控制
   const enterTimerRef = React.useRef<number | undefined>(undefined);
