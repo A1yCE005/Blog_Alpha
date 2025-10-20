@@ -301,8 +301,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         return;
       }
 
-      const containerRect = container.getBoundingClientRect();
-      const containerCenter = containerRect.top + containerRect.height / 2;
+      const containerCenter = container.scrollTop + container.clientHeight / 2;
 
       let nearestId: number | null = null;
       let nearestDistance = Number.POSITIVE_INFINITY;
@@ -312,8 +311,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
           return;
         }
 
-        const rect = node.getBoundingClientRect();
-        const itemCenter = rect.top + rect.height / 2;
+        const itemCenter = node.offsetTop + node.offsetHeight / 2;
         const distance = Math.abs(itemCenter - containerCenter);
 
         if (distance < nearestDistance) {
