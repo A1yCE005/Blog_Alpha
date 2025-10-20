@@ -57,8 +57,8 @@ const CONFIG = {
   idleHoldMs: 2800,
   idleScatterMs: 1400,
   idleGatherDelayMs: 520,
-  idleGustStrength: 5.4,
-  idleGustJitter: 1.8,
+  idleGustStrength: 4.6,
+  idleGustJitter: 1.6,
   idleAmbientDrift: 0.16,
   idleGatherTransitionMs: 3800
 };
@@ -288,7 +288,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       wasMorph = false;
       morphElapsedMs = 0;
       for (const p of particles) {
-        const baseSpd = idleGustStrength * (0.45 + Math.random() * 0.55);
+        const baseSpd = idleGustStrength * (0.38 + Math.random() * 0.5);
         const theta = Math.random() * Math.PI * 2;
         const gust = {
           x: Math.cos(theta) * baseSpd,
@@ -298,7 +298,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         const jitterY = (Math.random() - 0.5) * idleGustJitter * 0.6;
         p.vx = gust.x + jitterX;
         p.vy = gust.y + jitterY;
-        const maxScatterSpeed = idleGustStrength * 1.35;
+        const maxScatterSpeed = idleGustStrength * 1.22;
         const vMag = Math.hypot(p.vx, p.vy);
         if (vMag > maxScatterSpeed) {
           const scale = maxScatterSpeed / vMag;
@@ -845,8 +845,10 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         }
 
         const phaseNow = phase;
-        const dtFactor = phaseNow === "drop" ? dropFactor : fastFactor;
-        animElapsedMs += phaseNow === "drop" ? dropDt : fastDt;
+        const useFastClock = phaseNow !== "drop" && phaseNow !== "idleScatter";
+        const phaseDt = useFastClock ? fastDt : dropDt;
+        const dtFactor = useFastClock ? fastFactor : dropFactor;
+        animElapsedMs += phaseDt;
 
         const a = Math.min(0.9, (CONFIG.mouseSmooth ?? 0) * dtFactor);
         smouse.x += (mouse.x - smouse.x) * a;
@@ -963,17 +965,17 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           }
 
           if (idleState === "waiting") {
-            idleHoldElapsed += fastDt;
+            idleHoldElapsed += useFastClock ? fastDt : dropDt;
             if (idleHoldElapsed >= idleHold) {
               startIdleScatter();
             }
           } else if (idleState === "gust") {
-            idleScatterElapsed += fastDt;
+            idleScatterElapsed += dropDt;
             if (idleScatterElapsed >= idleScatter) {
               scheduleIdleGather();
             }
           } else if (idleState === "awaitGather") {
-            idleGatherDelayLeft -= fastDt;
+            idleGatherDelayLeft -= dropDt;
             if (idleGatherDelayLeft <= 0) {
               beginIdleGather();
             }
@@ -1134,9 +1136,9 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
 
   React.useEffect(() => {
     if (isMobile) {
-      setGap(5.6);
-      setLetterSpacing(0.045);
-      setGlyphSizePx(9);
+      setGap(5.0);
+      setLetterSpacing(0.04);
+      setGlyphSizePx(8);
     } else {
       setGap(CONFIG.sampleGap);
       setLetterSpacing(CONFIG.letterSpacing);
