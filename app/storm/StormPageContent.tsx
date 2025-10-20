@@ -12,7 +12,7 @@ type StormPageContentProps = {
   quotes: string[];
 };
 
-const IDLE_DELAY_MS = 0;
+const IDLE_DELAY_MS = 160;
 
 export function StormPageContent({ quotes }: StormPageContentProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -85,8 +85,9 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     clearIdleTimeout();
     idleTimeoutRef.current = window.setTimeout(() => {
       setIsIdle(true);
+      scheduleFocusUpdate();
     }, IDLE_DELAY_MS);
-  }, [clearIdleTimeout, prefersReducedMotion]);
+  }, [clearIdleTimeout, prefersReducedMotion, scheduleFocusUpdate]);
 
   const { isTransitioning, handleLinkClick } = usePageTransition("storm");
   const isInteractive = !isTransitioning;
@@ -262,11 +263,11 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
   };
 
   const getCardState = (baseIndex: number) => {
-    if (baseIndex === focusedIndex) {
-      return "focused";
-    }
     if (!isIdle) {
       return "active";
+    }
+    if (baseIndex === focusedIndex) {
+      return "focused";
     }
     return "idle";
   };
@@ -279,8 +280,8 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
       state === "focused"
         ? "text-violet-300 blur-0 opacity-100 scale-100"
         : state === "active"
-          ? "text-zinc-100/80 blur-[1.5px] opacity-80 scale-[0.99]"
-          : "text-zinc-500 blur-sm opacity-60 scale-95";
+          ? "text-zinc-100 blur-0 opacity-100 scale-100"
+          : "text-zinc-500/80 blur-sm opacity-70 scale-[0.98]";
 
     const loopIndex =
       quotes.length === 0
@@ -292,10 +293,10 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         key={`${baseIndex}-${extendedIndex}`}
         data-base-index={baseIndex}
         data-loop-index={loopIndex}
-        className="flex min-h-[60vh] items-center justify-center py-10 will-change-transform"
+        className="flex min-h-[32vh] items-center justify-center py-6 sm:min-h-[28vh] sm:py-8 will-change-transform"
       >
         <blockquote
-          className={`max-w-3xl text-center text-2xl font-semibold leading-tight transition-all duration-500 ease-out sm:text-3xl ${stateClasses}`}
+          className={`max-w-3xl text-center text-2xl font-semibold leading-tight transition-all duration-300 ease-out sm:text-3xl ${stateClasses}`}
         >
           {quote}
         </blockquote>
@@ -312,7 +313,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         }`}
       >
         <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-6 py-12 sm:px-10">
-          <div className="pb-12">
+          <div className="flex justify-end pb-12 pt-28 pr-2 sm:pr-4">
             <Link
               href="/"
               onClick={(event) => handleLinkClick(event, "/")}
