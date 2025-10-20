@@ -60,9 +60,9 @@ const CONFIG = {
   idleGustStrength: 6.2,
   idleGustJitter: 1.8,
   idleAmbientDrift: 0.24,
-  idleScatterSpeedFloor: 0.58,
+  idleScatterSpeedFloor: 0.7,
   idleScatterSpeedRange: 0.72,
-  idleScatterSpeedLimit: 1.55,
+  idleScatterSpeedLimit: 1.4,
   idleScatterVelocityApproach: 0.36,
   idleGatherTransitionMs: 2600
 };
