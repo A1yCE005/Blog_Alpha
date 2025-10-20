@@ -368,32 +368,52 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     }
   }, [scheduleIdleHighlight]);
 
-  const handlePointerDown = useCallback(() => {
-    pointerActiveRef.current = true;
-
-    if (scrollIdleTimeoutRef.current !== null) {
-      window.clearTimeout(scrollIdleTimeoutRef.current);
-      scrollIdleTimeoutRef.current = null;
-    }
-
-    cancelScrollAnimation();
-  }, [cancelScrollAnimation]);
-
-  const handlePointerUp = useCallback(() => {
-    settlePointerInteraction();
-  }, [settlePointerInteraction]);
-
-  const handlePointerCancel = useCallback(() => {
-    settlePointerInteraction();
-  }, [settlePointerInteraction]);
-
-  const handlePointerLeave = useCallback(
+  const handlePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (event.buttons === 0) {
-        settlePointerInteraction();
+      pointerActiveRef.current = true;
+
+      if (scrollIdleTimeoutRef.current !== null) {
+        window.clearTimeout(scrollIdleTimeoutRef.current);
+        scrollIdleTimeoutRef.current = null;
+      }
+
+      cancelScrollAnimation();
+
+      try {
+        if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }
+      } catch {
+        // Pointer capture not supported (e.g. older Safari). Ignore.
       }
     },
-    [settlePointerInteraction]
+    [cancelScrollAnimation]
+  );
+
+  const releasePointer = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    } catch {
+      // Older browsers may throw if pointer capture isn't available.
+    }
+  }, []);
+
+  const handlePointerUp = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      releasePointer(event);
+      settlePointerInteraction();
+    },
+    [releasePointer, settlePointerInteraction]
+  );
+
+  const handlePointerCancel = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      releasePointer(event);
+      settlePointerInteraction();
+    },
+    [releasePointer, settlePointerInteraction]
   );
 
   useEffect(() => {
@@ -588,7 +608,6 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
               onPointerDown={handlePointerDown}
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerCancel}
-              onPointerLeave={handlePointerLeave}
               className="storm-scroll-container relative flex h-full flex-col overflow-y-auto px-2 sm:px-4"
               tabIndex={isInteractive ? 0 : -1}
             >
