@@ -57,10 +57,14 @@ const CONFIG = {
   idleHoldMs: 4200,
   idleScatterMs: 1800,
   idleGatherDelayMs: 520,
-  idleGustStrength: 4.8,
-  idleGustJitter: 1.6,
+  idleGustStrength: 6.2,
+  idleGustJitter: 1.8,
   idleAmbientDrift: 0.24,
-  idleGatherTransitionMs: 2600  
+  idleScatterSpeedFloor: 0.58,
+  idleScatterSpeedRange: 0.72,
+  idleScatterSpeedLimit: 1.55,
+  idleScatterVelocityApproach: 0.36,
+  idleGatherTransitionMs: 2600
 };
 
 function usePrefersReducedMotion() {
@@ -100,6 +104,10 @@ type WPProps = {
   idleGustStrength?: number;
   idleGustJitter?: number;
   idleAmbientDrift?: number;
+  idleScatterSpeedFloor?: number;
+  idleScatterSpeedRange?: number;
+  idleScatterSpeedLimit?: number;
+  idleScatterVelocityApproach?: number;
   idleGatherTransitionMs?: number;
   onWordChange?: (word: string) => void;
 };
@@ -141,6 +149,10 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     idleGustStrength: idleGustStrengthProp,
     idleGustJitter: idleGustJitterProp,
     idleAmbientDrift: idleAmbientDriftProp,
+    idleScatterSpeedFloor: idleScatterSpeedFloorProp,
+    idleScatterSpeedRange: idleScatterSpeedRangeProp,
+    idleScatterSpeedLimit: idleScatterSpeedLimitProp,
+    idleScatterVelocityApproach: idleScatterVelocityApproachProp,
     idleGatherTransitionMs: idleGatherTransitionMsProp,
     onWordChange
   } = props;
@@ -161,6 +173,14 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   const idleGustStrength = idleGustStrengthProp ?? CONFIG.idleGustStrength ?? 8.4;
   const idleGustJitter = idleGustJitterProp ?? CONFIG.idleGustJitter ?? 2.6;
   const idleAmbientDrift = idleAmbientDriftProp ?? CONFIG.idleAmbientDrift ?? 0.16;
+  const idleScatterSpeedFloor =
+    idleScatterSpeedFloorProp ?? CONFIG.idleScatterSpeedFloor ?? 0.38;
+  const idleScatterSpeedRange =
+    idleScatterSpeedRangeProp ?? CONFIG.idleScatterSpeedRange ?? 0.5;
+  const idleScatterSpeedLimit =
+    idleScatterSpeedLimitProp ?? CONFIG.idleScatterSpeedLimit ?? 1.22;
+  const idleScatterVelocityApproach =
+    idleScatterVelocityApproachProp ?? CONFIG.idleScatterVelocityApproach ?? 0.24;
   const idleGatherTransitionMs =
     idleGatherTransitionMsProp ?? CONFIG.idleGatherTransitionMs ?? (CONFIG.transitionMs ?? 1200) * 1.35;
 
@@ -290,7 +310,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       wasMorph = false;
       morphElapsedMs = 0;
       for (const p of particles) {
-        const baseSpd = idleGustStrength * (0.38 + Math.random() * 0.5);
+        const baseSpd = idleGustStrength * (idleScatterSpeedFloor + Math.random() * idleScatterSpeedRange);
         const theta = Math.random() * Math.PI * 2;
         const gust = {
           x: Math.cos(theta) * baseSpd,
@@ -300,7 +320,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         const jitterY = (Math.random() - 0.5) * idleGustJitter * 0.6;
         p.vx = gust.x + jitterX;
         p.vy = gust.y + jitterY;
-        const maxScatterSpeed = idleGustStrength * 1.22;
+        const maxScatterSpeed = idleGustStrength * idleScatterSpeedLimit;
         const vMag = Math.hypot(p.vx, p.vy);
         if (vMag > maxScatterSpeed) {
           const scale = maxScatterSpeed / vMag;
@@ -940,7 +960,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             const scatterDuration = Math.max(1, idleScatter);
             const scatterProgress = clamp01(idleScatterElapsed / scatterDuration);
             const speedMultiplier = 1 - easeOutCubic(scatterProgress);
-            const approach = 1 - Math.pow(1 - 0.24, Math.max(0, dtFactor));
+            const approach = 1 - Math.pow(1 - idleScatterVelocityApproach, Math.max(0, dtFactor));
             const swirlA = Math.sin((animElapsedMs + p.tx * 7 + p.ty * 5) * 0.003) * 0.28;
             const swirlB = Math.cos((animElapsedMs * 0.0018 + p.ty * 9 - p.tx * 6) * 0.004) * 0.22;
             const jitterX = Math.sin((animElapsedMs + p.ty * 13) * 0.0023) * idleAmbientDrift * 0.12;
