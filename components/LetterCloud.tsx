@@ -78,6 +78,7 @@ function usePrefersReducedMotion() {
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 // 近似 cubic-bezier(0.4, 0.0, 0.2, 1)
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - clamp01(t), 3);
 
 type WPProps = {
   word?: string;
@@ -202,6 +203,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       hrad?: number;              // 汇聚初始半径
       gx?: number; gy?: number;   // 本轮汇聚起始位置
       introGather?: boolean;
+      scatterClock?: number;
+      scatterDuration?: number;
     };
     let particles: P[] = [];
     let baseParticleCount = 0;
@@ -263,6 +266,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         p.gx = p.x;
         p.gy = p.y;
         p.introGather = isIntro;
+        p.scatterClock = undefined;
+        p.scatterDuration = undefined;
       }
     };
 
@@ -305,6 +310,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           p.vx *= scale;
           p.vy *= scale;
         }
+        p.scatterClock = 0;
+        const scatterDurJitter = 0.75 + Math.random() * 0.55;
+        p.scatterDuration = Math.max(320, idleScatter * scatterDurJitter);
       }
     }
 
@@ -933,17 +941,25 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
             if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
           } else if (phaseNow === "idleScatter") {
+            const scatterClock = (p.scatterClock = (p.scatterClock ?? 0) + dropDt);
+            const scatterDuration = p.scatterDuration ?? Math.max(idleScatter, 320);
+            const scatterT = clamp01(scatterClock / Math.max(1, scatterDuration));
+            const envelope = 1 - easeOutCubic(scatterT);
+            const swirlScale = 0.3 + envelope * 0.7;
+            const jitterScale = 0.35 + envelope * 0.65;
             const swirlA = Math.sin((animElapsedMs + p.tx * 7 + p.ty * 5) * 0.003) * 0.28;
             const swirlB = Math.cos((animElapsedMs * 0.0018 + p.ty * 9 - p.tx * 6) * 0.004) * 0.22;
-            const jitterX = Math.sin((animElapsedMs + p.ty * 13) * 0.0023) * idleAmbientDrift * 0.12;
-            const jitterY = Math.cos((animElapsedMs * 0.0026 + p.tx * 17) * 0.0021) * idleAmbientDrift * 0.12;
-            p.vx += ((swirlA * 0.06) + (swirlB * 0.11) + jitterX) * dtFactor;
-            p.vy += ((swirlB * 0.07) - (swirlA * 0.05) + jitterY) * dtFactor;
-            const scatterDecay = Math.pow(0.984, dtFactor);
+            const jitterX = Math.sin((animElapsedMs + p.ty * 13) * 0.0023) * idleAmbientDrift * 0.12 * jitterScale;
+            const jitterY = Math.cos((animElapsedMs * 0.0026 + p.tx * 17) * 0.0021) * idleAmbientDrift * 0.12 * jitterScale;
+            p.vx += (((swirlA * 0.06) + (swirlB * 0.11)) * swirlScale + jitterX) * dtFactor;
+            p.vy += (((swirlB * 0.07) - (swirlA * 0.05)) * swirlScale + jitterY) * dtFactor;
+            const decayBase = 0.86 + envelope * 0.12;
+            const scatterDecay = Math.pow(decayBase, dtFactor);
             p.vx *= scatterDecay;
             p.vy *= scatterDecay;
-            p.x += p.vx * dtFactor;
-            p.y += p.vy * dtFactor;
+            const moveScale = 0.4 + envelope * 0.6;
+            p.x += p.vx * dtFactor * moveScale;
+            p.y += p.vy * dtFactor * moveScale;
             const margin = Math.max(18, gap * 2.2);
             if (p.x < -margin) { p.x = -margin; p.vx *= -0.42; }
             else if (p.x > w + margin) { p.x = w + margin; p.vx *= -0.42; }
