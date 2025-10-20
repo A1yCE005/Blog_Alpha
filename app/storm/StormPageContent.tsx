@@ -645,22 +645,29 @@ function StormQuoteCard({
   );
 
   const baseTextClasses =
-    "max-w-3xl whitespace-pre-line text-center font-sans text-[1.5rem] font-bold leading-relaxed transition-all duration-500 ease-out sm:text-[1.9rem] md:text-[2.15rem]";
+    "relative z-10 w-full max-w-3xl whitespace-pre-line text-center font-sans text-[1.45rem] font-bold leading-[1.85] transition-all duration-500 ease-out sm:text-[1.8rem] md:text-[2.05rem]";
 
   const highlightedClasses = highlighted
-    ? "text-violet-300 storm-quote-highlight"
+    ? "text-violet-200 storm-quote-text-highlighted"
     : depthActive
-    ? "text-zinc-500/60 blur-[4px] opacity-[0.35] saturate-[0.4]"
+    ? "storm-quote-text-muted"
     : "text-zinc-100";
 
   return (
     <article
       ref={setRefs}
-      className={`flex justify-center px-6 py-8 transition-transform duration-500 ease-out ${
-        highlighted ? "scale-[1.05]" : depthActive ? "scale-[0.94]" : "scale-[1]"
-      } overflow-visible`}
+      className={`storm-quote-card flex justify-center px-6 py-8 transition-transform duration-500 ease-out ${
+        highlighted ? "storm-quote-card-highlighted scale-[1.05]" : depthActive ? "scale-[0.94]" : "scale-[1]"
+      }`}
     >
-      <p className={`${baseTextClasses} ${highlightedClasses}`}>{text}</p>
+      <div className="relative isolate w-full max-w-3xl">
+        <div
+          aria-hidden
+          className="storm-quote-glow"
+          data-active={highlighted ? "true" : "false"}
+        />
+        <p className={`${baseTextClasses} ${highlightedClasses}`}>{text}</p>
+      </div>
     </article>
   );
 }
