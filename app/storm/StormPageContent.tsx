@@ -13,6 +13,7 @@ type StormPageContentProps = {
 };
 
 const IDLE_DELAY_MS = 120;
+const POINTER_MOVE_ACTIVATION_MS = 100;
 
 export function StormPageContent({ quotes }: StormPageContentProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -27,13 +28,25 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
   const baseHeightRef = React.useRef(0);
   const idleTimeoutRef = React.useRef<number | null>(null);
   const focusUpdateRef = React.useRef<number | null>(null);
-
+  
   const [focusedIndex, setFocusedIndex] = React.useState(0);
   const [isIdle, setIsIdle] = React.useState(() => !prefersReducedMotion);
   const initialFocusRef = React.useRef(0);
   const hasAlignedInitialFocusRef = React.useRef(false);
   const pendingFocusRef = React.useRef<number | null>(null);
   const isIdleRef = React.useRef(!prefersReducedMotion);
+  const pointerMoveStartRef = React.useRef<number | null>(null);
+  const pointerMoveLastRef = React.useRef<number | null>(null);
+  const pointerMoveTimeoutRef = React.useRef<number | null>(null);
+
+  const clearPointerMoveTracking = React.useCallback(() => {
+    if (pointerMoveTimeoutRef.current !== null) {
+      window.clearTimeout(pointerMoveTimeoutRef.current);
+      pointerMoveTimeoutRef.current = null;
+    }
+    pointerMoveStartRef.current = null;
+    pointerMoveLastRef.current = null;
+  }, []);
 
   const clearIdleTimeout = React.useCallback(() => {
     if (idleTimeoutRef.current) {
@@ -247,8 +260,9 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         window.cancelAnimationFrame(focusUpdateRef.current);
         focusUpdateRef.current = null;
       }
+      clearPointerMoveTracking();
     };
-  }, [clearIdleTimeout]);
+  }, [clearIdleTimeout, clearPointerMoveTracking]);
 
   React.useEffect(() => {
     isIdleRef.current = isIdle;
@@ -280,8 +294,61 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
 
   const handlePointerOrWheel = () => {
     if (!prefersReducedMotion) {
+      clearPointerMoveTracking();
       resetIdle();
     }
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (prefersReducedMotion) {
+      return;
+    }
+
+    if (event.pointerType !== "mouse") {
+      clearPointerMoveTracking();
+      resetIdle();
+      return;
+    }
+
+    const now = performance.now();
+    pointerMoveLastRef.current = now;
+
+    if (pointerMoveStartRef.current === null) {
+      pointerMoveStartRef.current = now;
+      const startTime = now;
+      if (pointerMoveTimeoutRef.current !== null) {
+        window.clearTimeout(pointerMoveTimeoutRef.current);
+      }
+      pointerMoveTimeoutRef.current = window.setTimeout(() => {
+        pointerMoveTimeoutRef.current = null;
+        if (pointerMoveStartRef.current !== startTime) {
+          return;
+        }
+        const last = pointerMoveLastRef.current;
+        if (typeof last !== "number") {
+          pointerMoveStartRef.current = null;
+          return;
+        }
+        const elapsed = last - startTime;
+        const sinceLast = performance.now() - last;
+        if (elapsed >= POINTER_MOVE_ACTIVATION_MS && sinceLast <= POINTER_MOVE_ACTIVATION_MS) {
+          clearPointerMoveTracking();
+          resetIdle();
+        } else {
+          pointerMoveStartRef.current = null;
+        }
+      }, POINTER_MOVE_ACTIVATION_MS);
+      return;
+    }
+
+    if (now - pointerMoveStartRef.current >= POINTER_MOVE_ACTIVATION_MS) {
+      clearPointerMoveTracking();
+      resetIdle();
+    }
+  };
+
+  const handlePointerEnd = () => {
+    clearPointerMoveTracking();
   };
 
   const getCardState = (baseIndex: number) => {
@@ -337,8 +404,8 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-6 pb-12 pt-10 sm:px-10 sm:pt-16">
           <div className="flex justify-end pb-10">
             <Link
-              href="/"
-              onClick={(event) => handleLinkClick(event, "/")}
+              href="/?view=blog"
+              onClick={(event) => handleLinkClick(event, "/?view=blog")}
               className="inline-flex w-fit items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-600 transition-colors duration-200 hover:text-violet-200"
               tabIndex={isInteractive ? undefined : -1}
             >
@@ -351,7 +418,10 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
             onScroll={handleScroll}
             onWheel={handlePointerOrWheel}
             onPointerDown={handlePointerOrWheel}
-            onPointerMove={handlePointerOrWheel}
+            onPointerMove={handlePointerMove}
+            onPointerCancel={handlePointerEnd}
+            onPointerUp={handlePointerEnd}
+            onPointerLeave={handlePointerEnd}
             onTouchStart={handlePointerOrWheel}
             onFocus={handlePointerOrWheel}
             onKeyDown={handlePointerOrWheel}
