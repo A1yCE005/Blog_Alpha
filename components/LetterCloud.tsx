@@ -230,7 +230,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     let morphElapsedMs = 0;
     let exitElapsedMs = 0;
 
-    let elapsedMs = 0, lastTs = 0;
+    let elapsedMs = 0;
+    let lastTs = 0;
+    let lastWallMs = 0;
+    let lastGoodDt = 16.6667;
+    let hasLastFrame = false;
 
     let currentWord = word;
     type IdleState = "inactive" | "waiting" | "gust" | "awaitGather" | "gathering";
@@ -808,8 +812,47 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
     function step(ts?: number) {
       if (ts == null || Number.isNaN(ts)) ts = performance.now();
-      if (!lastTs) lastTs = ts;
-      const dt = ts - lastTs; lastTs = ts;
+      const wallNow = Date.now();
+
+      let dt = lastGoodDt;
+
+      if (!hasLastFrame) {
+        hasLastFrame = true;
+        lastTs = ts;
+        lastWallMs = wallNow;
+      } else {
+        let rafDt = ts - lastTs;
+        const wallDt = wallNow - lastWallMs;
+        lastTs = ts;
+        lastWallMs = wallNow;
+
+        if (!Number.isFinite(rafDt) || rafDt <= 0) {
+          rafDt = Number.isFinite(wallDt) && wallDt > 0 ? wallDt : lastGoodDt;
+        }
+
+        if (Number.isFinite(wallDt) && wallDt > 0) {
+          // Safari on some ProMotion devices under-reports the rAF timestamp by ~10-20%.
+          // Compare against the wall clock and fall back when the delta drifts noticeably.
+          const ratio = rafDt / wallDt;
+          if (ratio < 0.92) {
+            dt = wallDt;
+          } else if (ratio > 1.35) {
+            dt = wallDt;
+          } else {
+            dt = rafDt;
+          }
+        } else {
+          dt = rafDt;
+        }
+
+        if (!Number.isFinite(dt) || dt <= 0) {
+          dt = lastGoodDt;
+        }
+      }
+
+      dt = Math.min(dt, 80);
+      lastGoodDt = dt;
+
       const fscale = Math.min(2, Math.max(0.5, dt / 16.6667));
       elapsedMs += dt;
 
