@@ -809,8 +809,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     function step(ts?: number) {
       if (ts == null || Number.isNaN(ts)) ts = performance.now();
       if (!lastTs) lastTs = ts;
-      const dt = ts - lastTs; lastTs = ts;
-      const fscale = Math.min(2, Math.max(0.5, dt / 16.6667));
+      const dt = Math.max(0, ts - lastTs);
+      lastTs = ts;
+      const fscale = Math.min(2, dt / 16.6667 || 0);
       elapsedMs += dt;
 
       const w = canvas.width / DPR, h = canvas.height / DPR;
