@@ -230,7 +230,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     let morphElapsedMs = 0;
     let exitElapsedMs = 0;
 
-    let elapsedMs = 0, lastTs = 0;
+    let elapsedMs = 0, lastTs = 0, lastWallMs = 0;
 
     let currentWord = word;
     type IdleState = "inactive" | "waiting" | "gust" | "awaitGather" | "gathering";
@@ -808,8 +808,23 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
     function step(ts?: number) {
       if (ts == null || Number.isNaN(ts)) ts = performance.now();
-      if (!lastTs) lastTs = ts;
-      const dt = ts - lastTs; lastTs = ts;
+      const wallNow = Date.now();
+      if (!lastTs) {
+        lastTs = ts;
+        lastWallMs = wallNow;
+      }
+      let dt = ts - lastTs;
+      const wallDt = wallNow - lastWallMs;
+      lastTs = ts;
+      lastWallMs = wallNow;
+      const fallbackDt = wallDt > 0 ? wallDt : 0;
+      if (!Number.isFinite(dt) || dt <= 0) {
+        dt = fallbackDt;
+      } else if (fallbackDt > 0 && dt < fallbackDt * 0.75) {
+        // Safari on ProMotion displays may report smaller rAF deltas than real time,
+        // which slows the animation. Prefer the wall-clock delta when it diverges. 
+        dt = fallbackDt;
+      }
       const fscale = Math.min(2, Math.max(0.5, dt / 16.6667));
       elapsedMs += dt;
 
