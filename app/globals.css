@@ -54,6 +54,13 @@ article pre {
   display: none;
 }
 
+.storm-quote-highlight {
+  text-shadow:
+    0 0 22px rgba(167, 139, 250, 0.8),
+    0 0 58px rgba(167, 139, 250, 0.6),
+    0 0 110px rgba(167, 139, 250, 0.45);
+}
+
 article pre::-webkit-scrollbar {
   height: 10px;
 }

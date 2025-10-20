@@ -179,6 +179,31 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     suppressScrollHandlingRef.current = false;
   }, []);
 
+  const measureNodeCenterWithinContainer = useCallback(
+    (node: HTMLDivElement, container: HTMLDivElement) => {
+      let top = node.offsetTop;
+      let current: HTMLElement | null = node.offsetParent as HTMLElement | null;
+
+      while (current && current !== container) {
+        top += current.offsetTop;
+        current = current.offsetParent as HTMLElement | null;
+      }
+
+      if (current !== container) {
+        const nodeRect = node.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        return (
+          container.scrollTop +
+          (nodeRect.top - containerRect.top) +
+          nodeRect.height / 2
+        );
+      }
+
+      return top + node.offsetHeight / 2;
+    },
+    []
+  );
+
   const animateContainerToNode = useCallback(
     (node: HTMLDivElement) => {
       const container = containerRef.current;
@@ -186,15 +211,16 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         return;
       }
 
-      const containerRect = container.getBoundingClientRect();
-      const itemRect = node.getBoundingClientRect();
       const startTop = container.scrollTop;
-      const targetTop =
-        startTop +
-        (itemRect.top - containerRect.top + itemRect.height / 2 - container.clientHeight / 2);
+      const nodeCenter = measureNodeCenterWithinContainer(node, container);
+      const targetTop = nodeCenter - container.clientHeight / 2;
+      const clampedTargetTop = Math.max(
+        0,
+        Math.min(targetTop, container.scrollHeight - container.clientHeight)
+      );
 
-      if (Math.abs(targetTop - startTop) < 0.5) {
-        container.scrollTop = targetTop;
+      if (!Number.isFinite(clampedTargetTop) || Math.abs(clampedTargetTop - startTop) < 0.5) {
+        container.scrollTop = clampedTargetTop;
         return;
       }
 
@@ -214,11 +240,12 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         const progress = Math.min(1, elapsed / SCROLL_ANIMATION_DURATION);
         const eased = easeOutQuint(progress);
 
-        host.scrollTop = startTop + (targetTop - startTop) * eased;
+        host.scrollTop = startTop + (clampedTargetTop - startTop) * eased;
 
         if (progress < 1) {
           scrollAnimationFrameRef.current = window.requestAnimationFrame(step);
         } else {
+          host.scrollTop = clampedTargetTop;
           scrollAnimationFrameRef.current = null;
           suppressScrollHandlingRef.current = false;
         }
@@ -226,7 +253,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
 
       scrollAnimationFrameRef.current = window.requestAnimationFrame(step);
     },
-    [cancelScrollAnimation]
+    [cancelScrollAnimation, measureNodeCenterWithinContainer]
   );
 
   const applyHighlightToCenter = useCallback(
@@ -552,9 +579,9 @@ function StormQuoteCard({
     "max-w-3xl whitespace-pre-line text-center text-[1.55rem] font-bold leading-[1.6] tracking-[0.015em] transition-all duration-500 ease-out sm:text-[1.95rem] md:text-[2.2rem]";
 
   const highlightedClasses = highlighted
-    ? "text-violet-300 drop-shadow-[0_0_42px_rgba(167,139,250,0.55)]"
+    ? "text-violet-200 sm:text-violet-100 storm-quote-highlight"
     : depthActive
-    ? "text-zinc-500/60 blur-[3px] opacity-40 saturate-[0.45]"
+    ? "text-zinc-500/60 blur-[4px] opacity-[0.35] saturate-[0.35]"
     : "text-zinc-100";
 
   return (
