@@ -46,6 +46,19 @@ article pre {
   background: var(--scrollbar-track);
 }
 
+.storm-scroll-container {
+  scrollbar-width: none;
+}
+
+.storm-scroll-container::-webkit-scrollbar {
+  display: none;
+}
+
+.storm-quote-body {
+  display: inline-block;
+  padding-inline: clamp(1.4rem, 5vw, 3.25rem);
+}
+
 article pre::-webkit-scrollbar {
   height: 10px;
 }
