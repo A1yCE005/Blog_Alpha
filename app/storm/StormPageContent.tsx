@@ -184,26 +184,26 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     suppressScrollHandlingRef.current = false;
   }, []);
 
-  const resolveTargetScrollTop = useCallback(
-    (node: HTMLDivElement, container: HTMLDivElement) => {
-      const containerRect = container.getBoundingClientRect();
-      const nodeRect = node.getBoundingClientRect();
+const resolveTargetScrollTop = useCallback(
+  (node: HTMLDivElement, container: HTMLDivElement) => {
+    const containerHeight = container.clientHeight;
+    if (containerHeight <= 0) {
+      return container.scrollTop;
+    }
 
-      const containerHeight = containerRect.height;
-      if (containerHeight <= 0) {
-        return container.scrollTop;
-      }
+    const containerMax = Math.max(container.scrollHeight - containerHeight, 0);
+    const centeredOffset =
+      node.offsetTop + node.offsetHeight / 2 - containerHeight / 2;
 
-      const relativeTop = nodeRect.top - containerRect.top;
-      return (
-        container.scrollTop +
-        relativeTop +
-        nodeRect.height / 2 -
-        containerHeight / 2
-      );
-    },
-    []
-  );
+    if (!Number.isFinite(centeredOffset)) {
+      return container.scrollTop;
+    }
+
+    const clampedOffset = Math.min(Math.max(centeredOffset, 0), containerMax);
+    return clampedOffset;
+  },
+  []
+);
 
   const animateContainerToNode = useCallback(
     (node: HTMLDivElement) => {
@@ -213,17 +213,17 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         return;
       }
 
-      const startTop = container.scrollTop;
-      const initialTarget = resolveTargetScrollTop(node, container);
+    const startTop = container.scrollTop;
+    const target = resolveTargetScrollTop(node, container);
 
-      if (Math.abs(initialTarget - startTop) < 0.5) {
-        suppressScrollHandlingRef.current = true;
-        container.scrollTop = initialTarget;
-        requestAnimationFrame(() => {
-          recenteringRef.current = false;
-          suppressScrollHandlingRef.current = false;
-        });
-        return;
+    if (Math.abs(target - startTop) < 0.5) {
+      suppressScrollHandlingRef.current = true;
+      container.scrollTop = target;
+      requestAnimationFrame(() => {
+        recenteringRef.current = false;
+        suppressScrollHandlingRef.current = false;
+      });
+      return;
       }
 
       cancelScrollAnimation();
@@ -244,28 +244,27 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         });
       };
 
-      const step = (timestamp: number) => {
-        const host = containerRef.current;
-        if (!host) {
-          cancelScrollAnimation();
-          return;
-        }
+    const step = (timestamp: number) => {
+      const host = containerRef.current;
+      if (!host) {
+        cancelScrollAnimation();
+        return;
+      }
 
-        const elapsed = timestamp - startTime;
-        const progress = Math.min(1, elapsed / SCROLL_ANIMATION_DURATION);
-        const eased = easeOutQuint(progress);
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(1, elapsed / SCROLL_ANIMATION_DURATION);
+      const eased = easeOutQuint(progress);
 
-        const nextTarget = resolveTargetScrollTop(node, host);
-        const nextTop = startTop + (nextTarget - startTop) * eased;
-        const remaining = Math.abs(nextTarget - nextTop);
+      const nextTop = startTop + (target - startTop) * eased;
+      const remaining = Math.abs(target - nextTop);
 
-        if (progress >= 1 || remaining <= 0.35) {
-          host.scrollTop = nextTarget;
-          finish();
-          return;
-        }
+      if (progress >= 1 || remaining <= 0.35) {
+        host.scrollTop = target;
+        finish();
+        return;
+      }
 
-        host.scrollTop = nextTop;
+      host.scrollTop = nextTop;
         scrollAnimationFrameRef.current = window.requestAnimationFrame(step);
       };
 
