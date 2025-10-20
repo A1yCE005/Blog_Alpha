@@ -230,7 +230,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     let morphElapsedMs = 0;
     let exitElapsedMs = 0;
 
-    let elapsedMs = 0, lastTs = 0;
+    let elapsedMs = 0, lastTs = 0, lastWallMs = 0;
 
     let currentWord = word;
     type IdleState = "inactive" | "waiting" | "gust" | "awaitGather" | "gathering";
@@ -808,10 +808,23 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
     function step(ts?: number) {
       if (ts == null || Number.isNaN(ts)) ts = performance.now();
-      if (!lastTs) lastTs = ts;
-      const dt = ts - lastTs; lastTs = ts;
-      const fscale = Math.min(2, Math.max(0.5, dt / 16.6667));
-      elapsedMs += dt;
+      const wallNow = Date.now();
+      if (!lastTs) {
+        lastTs = ts;
+        lastWallMs = wallNow;
+      }
+      let dt = ts - lastTs;
+      const wallDt = wallNow - lastWallMs;
+      lastTs = ts;
+      lastWallMs = wallNow;
+      const fallbackDt = wallDt > 0 ? wallDt : 0;
+      if (!Number.isFinite(dt) || dt <= 0) {
+        dt = fallbackDt;
+      } else if (fallbackDt > 0 && dt < fallbackDt * 0.75) {
+        // Safari on ProMotion displays may report smaller rAF deltas than real time,
+        // which slows the animation. Prefer the wall-clock delta when it diverges.
+        dt = fallbackDt;
+      }
 
       const w = canvas.width / DPR, h = canvas.height / DPR;
 
@@ -820,163 +833,172 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       (ctx as any).globalAlpha = 1;
 
       if (!prefersReduced) {
-        const prevPhase = phase;
-        if (phase !== "exit" && phase !== "idleScatter") {
-          const morphT = dropDurationMs + morphDelayMs;
-          const newPhase: Phase = elapsedMs >= morphT ? "morph" : "drop";
-          if (newPhase === "morph" && !wasMorph) morphElapsedMs = 0;
-          if (newPhase !== "morph") morphElapsedMs = 0;
-          wasMorph = newPhase === "morph";
-          phase = newPhase;
-          if (phase === "morph" && prevPhase !== "morph") {
-            markGatherStart(!introSettled && idleState === "inactive");
-          }
-        } else if (phase === "exit") {
-          exitElapsedMs += dt;
-          wasMorph = false;
-        } else {
-          wasMorph = false;
-        }
+        let remaining = dt;
+        const maxStepMs = 32;
+        while (remaining > 1e-3) {
+          const stepDt = Math.min(remaining, maxStepMs);
+          remaining -= stepDt;
+          const fscale = Math.min(2, Math.max(0.5, stepDt / 16.6667));
 
-        const a = Math.min(0.9, CONFIG.mouseSmooth * fscale);
-        smouse.x += (mouse.x - smouse.x) * a;
-        smouse.y += (mouse.y - smouse.y) * a;
-
-        for (const p of particles) {
-          if (phase === "drop") {
-            p.vy += gravity * 0.08 * fscale;
-            p.x += p.vx * fscale; p.y += p.vy * fscale;
-
-            const groundY = h - 10;
-            if (p.y > groundY) {
-              p.y = groundY; p.vy *= bounce;
-              p.vx = p.vx * groundFriction + (Math.random() - 0.5) * 1.6;
-              if (Math.abs(p.vy) < 0.12) p.vy = 0;
+          const prevPhase = phase;
+          elapsedMs += stepDt;
+          if (phase !== "exit" && phase !== "idleScatter") {
+            const morphT = dropDurationMs + morphDelayMs;
+            const newPhase: Phase = elapsedMs >= morphT ? "morph" : "drop";
+            if (newPhase === "morph" && !wasMorph) morphElapsedMs = 0;
+            if (newPhase !== "morph") morphElapsedMs = 0;
+            wasMorph = newPhase === "morph";
+            phase = newPhase;
+            if (phase === "morph" && prevPhase !== "morph") {
+              markGatherStart(!introSettled && idleState === "inactive");
             }
-            const wall = 8;
-            if (p.y >= groundY - 0.5) {
-              if (p.x < wall) { p.x = wall; p.vx = -p.vx * 0.7; }
-              else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
-            } else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
-          } else if (phase === "morph") {
-            morphElapsedMs += dt;
-
-            let pushX = 0, pushY = 0;
-            const dxm = p.x - smouse.x, dym = p.y - smouse.y;
-            const r = CONFIG.mouseRepelRadius, d = Math.hypot(dxm, dym);
-            if (d < r) {
-              const dead = CONFIG.dockDeadzone || 0;
-              const t = Math.max(0, (d - dead) / Math.max(1e-3, r - dead));
-              const fall = 1 - t;
-              const base = CONFIG.mouseRepelForce * fall * fall;
-              const ux = d > 1e-3 ? dxm / d : 0, uy = d > 1e-3 ? dym / d : 0;
-              const maxOff = typeof dockMaxOffset === "number" ? dockMaxOffset : 10;
-              const off = Math.min(maxOff, base * 0.8);
-              pushX = ux * off; pushY = uy * off;
-            }
-
-            const hubX = w * (CONFIG.funnelXFrac ?? 0.5);
-            const hubY = h * (CONFIG.funnelYFrac ?? 0.5);
-            const split = clamp01(CONFIG.funnelSplit ?? 0.45);
-            const tLocal = clamp01((morphElapsedMs - (p.d || 0)) / Math.max(1, activeTransitionMs));
-
-            let targetX: number, targetY: number;
-            const startX = p.gx ?? p.x;
-            const startY = p.gy ?? p.y;
-            const isIntroGather = !!p.introGather && !introSettled;
-
-            if (isIntroGather) {
-              const liftDenom = Math.max(1e-3, split);
-              const liftT = easeInOut(Math.min(1, tLocal / liftDenom));
-              const lateralBase = clamp01((tLocal - split * 0.55) / Math.max(1e-3, 1 - split * 0.55));
-              const lateralT = easeInOut(lateralBase);
-              targetX = startX + (p.tx - startX) * lateralT;
-              targetY = startY + (p.ty - startY) * liftT;
-            } else if (tLocal < split) {
-              const u = easeInOut(tLocal / Math.max(1e-3, split));
-              const currR = (p.hrad ?? (CONFIG.funnelRadiusPx ?? 18)) * (1 - u);
-              const j = (CONFIG.funnelJitterPx ?? 6) * 0.05;
-              targetX = hubX + (p.hox ?? 1) * currR + (Math.random() - 0.5) * j;
-              targetY = hubY + (p.hoy ?? 0) * currR + (Math.random() - 0.5) * j;
-            } else {
-              const v = easeInOut((tLocal - split) / Math.max(1e-3, 1 - split));
-              targetX = hubX + (p.tx - hubX) * v;
-              targetY = hubY + (p.ty - hubY) * v;
-            }
-
-            targetX += pushX; targetY += pushY;
-
-            const stiffnessScale = Math.max(
-              0.22,
-              Math.min(2.4, (baseTransitionMs || 1200) / Math.max(1, activeTransitionMs))
-            );
-            const baseK = 0.04 * stiffnessScale;
-            const gainBase = typeof morphK === "number" ? morphK : 0.14;
-            const gainK = gainBase * stiffnessScale;
-            const kNow = baseK + easeInOut(tLocal) * gainK;
-
-            const dx = targetX - p.x, dy = targetY - p.y;
-            const tt = 1 - Math.pow(1 - kNow, Math.max(1, dt / 16.67));
-            p.x += dx * tt; p.y += dy * tt;
-
-            if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
-          } else if (phase === "idleScatter") {
-            const swirlA = Math.sin((elapsedMs + p.tx * 7 + p.ty * 5) * 0.003) * 0.28;
-            const swirlB = Math.cos((elapsedMs * 0.0018 + p.ty * 9 - p.tx * 6) * 0.004) * 0.22;
-            const jitterX = Math.sin((elapsedMs + p.ty * 13) * 0.0023) * idleAmbientDrift * 0.12;
-            const jitterY = Math.cos((elapsedMs * 0.0026 + p.tx * 17) * 0.0021) * idleAmbientDrift * 0.12;
-            p.vx += ((swirlA * 0.06) + (swirlB * 0.11) + jitterX) * fscale;
-            p.vy += ((swirlB * 0.07) - (swirlA * 0.05) + jitterY) * fscale;
-            p.vx *= 0.984;
-            p.vy *= 0.984;
-            p.x += p.vx * fscale;
-            p.y += p.vy * fscale;
-            const margin = Math.max(18, gap * 2.2);
-            if (p.x < -margin) { p.x = -margin; p.vx *= -0.42; }
-            else if (p.x > w + margin) { p.x = w + margin; p.vx *= -0.42; }
-            if (p.y < -margin) { p.y = -margin; p.vy *= -0.36; }
-            else if (p.y > h + margin) { p.y = h + margin; p.vy *= -0.48; }
+          } else if (phase === "exit") {
+            exitElapsedMs += stepDt;
+            wasMorph = false;
           } else {
-            p.vx *= 0.985;
-            p.vy *= 0.985;
-            p.x += p.vx * fscale;
-            p.y += p.vy * fscale;
-          }
-        }
-
-        if (canIdleCycle()) {
-          if (!introSettled && phase === "morph" && morphElapsedMs > gatherCompleteMs) {
-            introSettled = true;
-            if (idleState === "inactive") startIdleHold();
+            wasMorph = false;
           }
 
-          if (idleState === "waiting") {
-            idleHoldElapsed += dt;
-            if (idleHoldElapsed >= idleHold) {
-              startIdleScatter();
+          const a = Math.min(0.9, CONFIG.mouseSmooth * fscale);
+          smouse.x += (mouse.x - smouse.x) * a;
+          smouse.y += (mouse.y - smouse.y) * a;
+
+          for (const p of particles) {
+            if (phase === "drop") {
+              p.vy += gravity * 0.08 * fscale;
+              p.x += p.vx * fscale; p.y += p.vy * fscale;
+
+              const groundY = h - 10;
+              if (p.y > groundY) {
+                p.y = groundY; p.vy *= bounce;
+                p.vx = p.vx * groundFriction + (Math.random() - 0.5) * 1.6;
+                if (Math.abs(p.vy) < 0.12) p.vy = 0;
+              }
+              const wall = 8;
+              if (p.y >= groundY - 0.5) {
+                if (p.x < wall) { p.x = wall; p.vx = -p.vx * 0.7; }
+                else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
+              } else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
+            } else if (phase === "morph") {
+              morphElapsedMs += stepDt;
+
+              let pushX = 0, pushY = 0;
+              const dxm = p.x - smouse.x, dym = p.y - smouse.y;
+              const r = CONFIG.mouseRepelRadius, d = Math.hypot(dxm, dym);
+              if (d < r) {
+                const dead = CONFIG.dockDeadzone || 0;
+                const t = Math.max(0, (d - dead) / Math.max(1e-3, r - dead));
+                const fall = 1 - t;
+                const base = CONFIG.mouseRepelForce * fall * fall;
+                const ux = d > 1e-3 ? dxm / d : 0, uy = d > 1e-3 ? dym / d : 0;
+                const maxOff = typeof dockMaxOffset === "number" ? dockMaxOffset : 10;
+                const off = Math.min(maxOff, base * 0.8);
+                pushX = ux * off; pushY = uy * off;
+              }
+
+              const hubX = w * (CONFIG.funnelXFrac ?? 0.5);
+              const hubY = h * (CONFIG.funnelYFrac ?? 0.5);
+              const split = clamp01(CONFIG.funnelSplit ?? 0.45);
+              const tLocal = clamp01((morphElapsedMs - (p.d || 0)) / Math.max(1, activeTransitionMs));
+
+              let targetX: number, targetY: number;
+              const startX = p.gx ?? p.x;
+              const startY = p.gy ?? p.y;
+              const isIntroGather = !!p.introGather && !introSettled;
+
+              if (isIntroGather) {
+                const liftDenom = Math.max(1e-3, split);
+                const liftT = easeInOut(Math.min(1, tLocal / liftDenom));
+                const lateralBase = clamp01((tLocal - split * 0.55) / Math.max(1e-3, 1 - split * 0.55));
+                const lateralT = easeInOut(lateralBase);
+                targetX = startX + (p.tx - startX) * lateralT;
+                targetY = startY + (p.ty - startY) * liftT;
+              } else if (tLocal < split) {
+                const u = easeInOut(tLocal / Math.max(1e-3, split));
+                const currR = (p.hrad ?? (CONFIG.funnelRadiusPx ?? 18)) * (1 - u);
+                const j = (CONFIG.funnelJitterPx ?? 6) * 0.05;
+                targetX = hubX + (p.hox ?? 1) * currR + (Math.random() - 0.5) * j;
+                targetY = hubY + (p.hoy ?? 0) * currR + (Math.random() - 0.5) * j;
+              } else {
+                const v = easeInOut((tLocal - split) / Math.max(1e-3, 1 - split));
+                targetX = hubX + (p.tx - hubX) * v;
+                targetY = hubY + (p.ty - hubY) * v;
+              }
+
+              targetX += pushX; targetY += pushY;
+
+              const stiffnessScale = Math.max(
+                0.22,
+                Math.min(2.4, (baseTransitionMs || 1200) / Math.max(1, activeTransitionMs))
+              );
+              const baseK = 0.04 * stiffnessScale;
+              const gainBase = typeof morphK === "number" ? morphK : 0.14;
+              const gainK = gainBase * stiffnessScale;
+              const kNow = baseK + easeInOut(tLocal) * gainK;
+
+              const dx = targetX - p.x, dy = targetY - p.y;
+              const tt = 1 - Math.pow(1 - kNow, Math.max(1, stepDt / 16.67));
+              p.x += dx * tt; p.y += dy * tt;
+
+              if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
+            } else if (phase === "idleScatter") {
+              const swirlA = Math.sin((elapsedMs + p.tx * 7 + p.ty * 5) * 0.003) * 0.28;
+              const swirlB = Math.cos((elapsedMs * 0.0018 + p.ty * 9 - p.tx * 6) * 0.004) * 0.22;
+              const jitterX = Math.sin((elapsedMs + p.ty * 13) * 0.0023) * idleAmbientDrift * 0.12;
+              const jitterY = Math.cos((elapsedMs * 0.0026 + p.tx * 17) * 0.0021) * idleAmbientDrift * 0.12;
+              p.vx += ((swirlA * 0.06) + (swirlB * 0.11) + jitterX) * fscale;
+              p.vy += ((swirlB * 0.07) - (swirlA * 0.05) + jitterY) * fscale;
+              p.vx *= 0.984;
+              p.vy *= 0.984;
+              p.x += p.vx * fscale;
+              p.y += p.vy * fscale;
+              const margin = Math.max(18, gap * 2.2);
+              if (p.x < -margin) { p.x = -margin; p.vx *= -0.42; }
+              else if (p.x > w + margin) { p.x = w + margin; p.vx *= -0.42; }
+              if (p.y < -margin) { p.y = -margin; p.vy *= -0.36; }
+              else if (p.y > h + margin) { p.y = h + margin; p.vy *= -0.48; }
+            } else {
+              p.vx *= 0.985;
+              p.vy *= 0.985;
+              p.x += p.vx * fscale;
+              p.y += p.vy * fscale;
             }
-          } else if (idleState === "gust") {
-            idleScatterElapsed += dt;
-            if (idleScatterElapsed >= idleScatter) {
-              scheduleIdleGather();
-            }
-          } else if (idleState === "awaitGather") {
-            idleGatherDelayLeft -= dt;
-            if (idleGatherDelayLeft <= 0) {
-              beginIdleGather();
-            }
-          } else if (idleState === "gathering") {
-            if (phase === "morph" && morphElapsedMs > gatherCompleteMs) {
-              idleState = "waiting";
-              idleHoldElapsed = 0;
-            }
-          } else if (idleState === "inactive" && introSettled && phase === "morph" && morphElapsedMs > gatherCompleteMs) {
-            startIdleHold();
           }
-        } else if (idleState !== "inactive" && phase !== "exit") {
-          idleState = "inactive";
-          if (phase === "idleScatter") {
-            retargetToWord(currentWord);
+
+          if (canIdleCycle()) {
+            if (!introSettled && phase === "morph" && morphElapsedMs > gatherCompleteMs) {
+              introSettled = true;
+              if (idleState === "inactive") startIdleHold();
+            }
+
+            if (idleState === "waiting") {
+              idleHoldElapsed += stepDt;
+              if (idleHoldElapsed >= idleHold) {
+                startIdleScatter();
+              }
+            } else if (idleState === "gust") {
+              idleScatterElapsed += stepDt;
+              if (idleScatterElapsed >= idleScatter) {
+                scheduleIdleGather();
+              }
+            } else if (idleState === "awaitGather") {
+              idleGatherDelayLeft -= stepDt;
+              if (idleGatherDelayLeft <= 0) {
+                beginIdleGather();
+              }
+            } else if (idleState === "gathering") {
+              if (phase === "morph" && morphElapsedMs > gatherCompleteMs) {
+                idleState = "waiting";
+                idleHoldElapsed = 0;
+              }
+            } else if (idleState === "inactive" && introSettled && phase === "morph" && morphElapsedMs > gatherCompleteMs) {
+              startIdleHold();
+            }
+          } else if (idleState !== "inactive" && phase !== "exit") {
+            idleState = "inactive";
+            if (phase === "idleScatter") {
+              retargetToWord(currentWord);
+            }
           }
         }
       } else {
