@@ -117,6 +117,14 @@ a { text-decoration: none; }
   opacity: 1;
 }
 
+.storm-scroll {
+  scrollbar-width: none;
+}
+
+.storm-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page-fade-in {
     animation: none;
