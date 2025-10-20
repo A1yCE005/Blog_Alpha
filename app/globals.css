@@ -46,6 +46,21 @@ article pre {
   background: var(--scrollbar-track);
 }
 
+.storm-scroll-container {
+  scrollbar-width: none;
+}
+
+.storm-scroll-container::-webkit-scrollbar {
+  display: none;
+}
+
+.storm-quote-highlight {
+  filter: drop-shadow(0 0 1.5rem rgba(167, 139, 250, 0.75))
+    drop-shadow(0 0 3.5rem rgba(167, 139, 250, 0.55));
+  text-shadow: 0 0 1.75rem rgba(167, 139, 250, 0.8),
+    0 0 3.75rem rgba(167, 139, 250, 0.55);
+}
+
 article pre::-webkit-scrollbar {
   height: 10px;
 }
