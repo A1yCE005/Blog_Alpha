@@ -811,9 +811,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       if (!lastTs) lastTs = ts;
       const rawDt = Math.max(0, ts - lastTs);
       lastTs = ts;
-      const simDt = Math.min(rawDt, 100);
-      const dtFactor = simDt / (1000 / 60);
-      elapsedMs += rawDt;
+      const timeScale = prefersReduced ? 1 : 1.12;
+      const scaledDt = rawDt * timeScale;
+      const cappedDt = Math.min(scaledDt, 100);
+      const dtFactor = cappedDt / (1000 / 60);
+      elapsedMs += scaledDt;
 
       const w = canvas.width / DPR, h = canvas.height / DPR;
 
@@ -834,7 +836,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             markGatherStart(!introSettled && idleState === "inactive");
           }
         } else if (phase === "exit") {
-          exitElapsedMs += rawDt;
+          exitElapsedMs += scaledDt;
           wasMorph = false;
         } else {
           wasMorph = false;
@@ -861,7 +863,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
               else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
             } else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
           } else if (phase === "morph") {
-            morphElapsedMs += rawDt;
+            morphElapsedMs += scaledDt;
 
             let pushX = 0, pushY = 0;
             const dxm = p.x - smouse.x, dym = p.y - smouse.y;
@@ -955,17 +957,17 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           }
 
           if (idleState === "waiting") {
-            idleHoldElapsed += rawDt;
+            idleHoldElapsed += scaledDt;
             if (idleHoldElapsed >= idleHold) {
               startIdleScatter();
             }
           } else if (idleState === "gust") {
-            idleScatterElapsed += rawDt;
+            idleScatterElapsed += scaledDt;
             if (idleScatterElapsed >= idleScatter) {
               scheduleIdleGather();
             }
           } else if (idleState === "awaitGather") {
-            idleGatherDelayLeft -= rawDt;
+            idleGatherDelayLeft -= scaledDt;
             if (idleGatherDelayLeft <= 0) {
               beginIdleGather();
             }
@@ -1088,6 +1090,7 @@ type FullscreenHomeProps = {
 export default function FullscreenHome({ posts, initialBlogView = false }: FullscreenHomeProps) {
   const [word, setWord] = React.useState(CONFIG.word);
   const [gap, setGap] = React.useState(CONFIG.sampleGap);
+  const [letterSpacing, setLetterSpacing] = React.useState(CONFIG.letterSpacing);
   const [morphK, setMorphK] = React.useState<number>(0.14);
   const [dockMaxOffset, setDockMaxOffset] = React.useState<number>(10);
   const [glyphSizePx, setGlyphSizePx] = React.useState<number | undefined>(undefined);
@@ -1097,6 +1100,31 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   const [blogVisible, setBlogVisible] = React.useState(initialBlogView);
   const [heroRetired, setHeroRetired] = React.useState(initialBlogView);
   const initialBlogRef = React.useRef(initialBlogView);
+
+  React.useEffect(() => {
+    const applyResponsiveTuning = () => {
+      if (typeof window === "undefined") return;
+      const width = window.innerWidth;
+      const mobileBreakpoint = 640;
+      if (width <= mobileBreakpoint) {
+        const compactGap = CONFIG.sampleGap * 0.8;
+        const compactLetterSpacing = CONFIG.letterSpacing * 0.8;
+        const baseGlyph = Math.max(8, Math.floor(CONFIG.sampleGap * 1.4));
+        const compactGlyph = Math.max(7, Math.round(baseGlyph * 0.85));
+        setGap(compactGap);
+        setLetterSpacing(compactLetterSpacing);
+        setGlyphSizePx(compactGlyph);
+      } else {
+        setGap(CONFIG.sampleGap);
+        setLetterSpacing(CONFIG.letterSpacing);
+        setGlyphSizePx(undefined);
+      }
+    };
+
+    applyResponsiveTuning();
+    window.addEventListener("resize", applyResponsiveTuning);
+    return () => window.removeEventListener("resize", applyResponsiveTuning);
+  }, []);
 
   const router = useRouter();
 
@@ -1151,7 +1179,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
               ref={particlesRef}
               word={word}
               gap={gap}
-              letterSpacing={CONFIG.letterSpacing}
+              letterSpacing={letterSpacing}
               glyphSizePx={glyphSizePx}
               gravity={CONFIG.gravity}
               bounce={CONFIG.bounce}
