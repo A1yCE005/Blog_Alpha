@@ -19,6 +19,7 @@ const INITIAL_BATCHES = 6;
 const LOAD_THRESHOLD = 240;
 const SCROLL_IDLE_DELAY = 320;
 const SCROLL_ANIMATION_DURATION = 900;
+const INITIAL_ENTRY_HIGHLIGHT_DELAY = 400;
 
 const easeOutQuint = (t: number) => 1 - Math.pow(1 - t, 5);
 
@@ -49,6 +50,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
   const loadTimeoutRef = useRef<number | null>(null);
   const hasSeededRef = useRef(false);
   const scrollIdleTimeoutRef = useRef<number | null>(null);
+  const initialHighlightTimeoutRef = useRef<number | null>(null);
   const suppressScrollHandlingRef = useRef(false);
   const pointerActiveRef = useRef(false);
   const pendingHighlightRef = useRef(false);
@@ -97,6 +99,10 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     setDepthActive(false);
     highlightedIdRef.current = null;
     initialHighlightRef.current = false;
+    if (initialHighlightTimeoutRef.current !== null) {
+      window.clearTimeout(initialHighlightTimeoutRef.current);
+      initialHighlightTimeoutRef.current = null;
+    }
     itemRefs.current.clear();
   }, [poolSignature, pool.length]);
 
@@ -113,6 +119,10 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
       if (scrollAnimationFrameRef.current !== null) {
         window.cancelAnimationFrame(scrollAnimationFrameRef.current);
         scrollAnimationFrameRef.current = null;
+      }
+      if (initialHighlightTimeoutRef.current !== null) {
+        window.clearTimeout(initialHighlightTimeoutRef.current);
+        initialHighlightTimeoutRef.current = null;
       }
       suppressScrollHandlingRef.current = false;
     };
@@ -546,7 +556,12 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
   );
 
   useEffect(() => {
-    if (!ready || items.length === 0 || initialHighlightRef.current) {
+    if (
+      !ready ||
+      items.length === 0 ||
+      initialHighlightRef.current ||
+      !isInteractive
+    ) {
       return;
     }
 
@@ -584,8 +599,22 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
       });
     };
 
-    requestAnimationFrame(focusSelected);
-  }, [applyHighlightToCenter, items, ready, resolveTargetScrollTop]);
+    if (initialHighlightTimeoutRef.current !== null) {
+      window.clearTimeout(initialHighlightTimeoutRef.current);
+      initialHighlightTimeoutRef.current = null;
+    }
+
+    initialHighlightTimeoutRef.current = window.setTimeout(() => {
+      initialHighlightTimeoutRef.current = null;
+      requestAnimationFrame(focusSelected);
+    }, INITIAL_ENTRY_HIGHLIGHT_DELAY);
+  }, [
+    applyHighlightToCenter,
+    isInteractive,
+    items,
+    ready,
+    resolveTargetScrollTop,
+  ]);
 
   const rerollItem = useCallback(
     (id: number) => {
