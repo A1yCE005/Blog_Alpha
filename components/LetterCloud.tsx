@@ -806,11 +806,19 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       buildScene(word);
     }
 
+    const BASE_STEP_MS = 1000 / 60;
+    const MIN_STEP_MS = BASE_STEP_MS / 8;     // ~480 fps 上限
+    const MAX_STEP_MS = BASE_STEP_MS * 3;     // ~20 fps 下限
+
+    const decayWithScale = (base: number, scale: number) => Math.pow(base, scale);
+
     function step(ts?: number) {
       if (ts == null || Number.isNaN(ts)) ts = performance.now();
       if (!lastTs) lastTs = ts;
-      const dt = ts - lastTs; lastTs = ts;
-      const fscale = Math.min(2, Math.max(0.5, dt / 16.6667));
+      const rawDt = ts - lastTs;
+      lastTs = ts;
+      const dt = Math.min(MAX_STEP_MS, Math.max(MIN_STEP_MS, rawDt));
+      const fscale = dt / BASE_STEP_MS;
       elapsedMs += dt;
 
       const w = canvas.width / DPR, h = canvas.height / DPR;
@@ -838,7 +846,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           wasMorph = false;
         }
 
-        const a = Math.min(0.9, CONFIG.mouseSmooth * fscale);
+        const baseSmooth = Math.min(0.95, Math.max(0, CONFIG.mouseSmooth));
+        const a = 1 - Math.pow(1 - baseSmooth, fscale);
         smouse.x += (mouse.x - smouse.x) * a;
         smouse.y += (mouse.y - smouse.y) * a;
 
@@ -927,8 +936,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             const jitterY = Math.cos((elapsedMs * 0.0026 + p.tx * 17) * 0.0021) * idleAmbientDrift * 0.12;
             p.vx += ((swirlA * 0.06) + (swirlB * 0.11) + jitterX) * fscale;
             p.vy += ((swirlB * 0.07) - (swirlA * 0.05) + jitterY) * fscale;
-            p.vx *= 0.984;
-            p.vy *= 0.984;
+            const idleDecay = decayWithScale(0.984, fscale);
+            p.vx *= idleDecay;
+            p.vy *= idleDecay;
             p.x += p.vx * fscale;
             p.y += p.vy * fscale;
             const margin = Math.max(18, gap * 2.2);
@@ -937,8 +947,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             if (p.y < -margin) { p.y = -margin; p.vy *= -0.36; }
             else if (p.y > h + margin) { p.y = h + margin; p.vy *= -0.48; }
           } else {
-            p.vx *= 0.985;
-            p.vy *= 0.985;
+            const settleDecay = decayWithScale(0.985, fscale);
+            p.vx *= settleDecay;
+            p.vy *= settleDecay;
             p.x += p.vx * fscale;
             p.y += p.vy * fscale;
           }
