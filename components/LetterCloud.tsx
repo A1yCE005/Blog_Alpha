@@ -78,6 +78,7 @@ function usePrefersReducedMotion() {
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 // 近似 cubic-bezier(0.4, 0.0, 0.2, 1)
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - clamp01(t), 3);
 
 type WPProps = {
   word?: string;
@@ -202,6 +203,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       hrad?: number;              // 汇聚初始半径
       gx?: number; gy?: number;   // 本轮汇聚起始位置
       introGather?: boolean;
+      svx?: number; svy?: number; // Idle Scatter 初速度
     };
     let particles: P[] = [];
     let baseParticleCount = 0;
@@ -296,15 +298,19 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         };
         const jitterX = (Math.random() - 0.5) * idleGustJitter;
         const jitterY = (Math.random() - 0.5) * idleGustJitter * 0.6;
-        p.vx = gust.x + jitterX;
-        p.vy = gust.y + jitterY;
+        let baseVX = gust.x + jitterX;
+        let baseVY = gust.y + jitterY;
         const maxScatterSpeed = idleGustStrength * 1.22;
-        const vMag = Math.hypot(p.vx, p.vy);
+        const vMag = Math.hypot(baseVX, baseVY);
         if (vMag > maxScatterSpeed) {
           const scale = maxScatterSpeed / vMag;
-          p.vx *= scale;
-          p.vy *= scale;
+          baseVX *= scale;
+          baseVY *= scale;
         }
+        p.svx = baseVX;
+        p.svy = baseVY;
+        p.vx = 0;
+        p.vy = 0;
       }
     }
 
@@ -933,6 +939,10 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
             if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
           } else if (phaseNow === "idleScatter") {
+            const scatterT = clamp01(idleScatterElapsed / Math.max(1, idleScatter));
+            const baseScale = easeOutCubic(1 - scatterT);
+            const baseVX = (p.svx ?? 0) * baseScale;
+            const baseVY = (p.svy ?? 0) * baseScale;
             const swirlA = Math.sin((animElapsedMs + p.tx * 7 + p.ty * 5) * 0.003) * 0.28;
             const swirlB = Math.cos((animElapsedMs * 0.0018 + p.ty * 9 - p.tx * 6) * 0.004) * 0.22;
             const jitterX = Math.sin((animElapsedMs + p.ty * 13) * 0.0023) * idleAmbientDrift * 0.12;
@@ -942,13 +952,29 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             const scatterDecay = Math.pow(0.984, dtFactor);
             p.vx *= scatterDecay;
             p.vy *= scatterDecay;
-            p.x += p.vx * dtFactor;
-            p.y += p.vy * dtFactor;
+            const totalVX = baseVX + p.vx;
+            const totalVY = baseVY + p.vy;
+            p.x += totalVX * dtFactor;
+            p.y += totalVY * dtFactor;
             const margin = Math.max(18, gap * 2.2);
-            if (p.x < -margin) { p.x = -margin; p.vx *= -0.42; }
-            else if (p.x > w + margin) { p.x = w + margin; p.vx *= -0.42; }
-            if (p.y < -margin) { p.y = -margin; p.vy *= -0.36; }
-            else if (p.y > h + margin) { p.y = h + margin; p.vy *= -0.48; }
+            if (p.x < -margin) {
+              p.x = -margin;
+              p.vx *= -0.42;
+              if (p.svx != null) p.svx = Math.abs(p.svx) * 0.42;
+            } else if (p.x > w + margin) {
+              p.x = w + margin;
+              p.vx *= -0.42;
+              if (p.svx != null) p.svx = -Math.abs(p.svx) * 0.42;
+            }
+            if (p.y < -margin) {
+              p.y = -margin;
+              p.vy *= -0.36;
+              if (p.svy != null) p.svy = Math.abs(p.svy) * 0.36;
+            } else if (p.y > h + margin) {
+              p.y = h + margin;
+              p.vy *= -0.48;
+              if (p.svy != null) p.svy = -Math.abs(p.svy) * 0.48;
+            }
           } else {
             const idleDecay = Math.pow(0.985, dtFactor);
             p.vx *= idleDecay;
