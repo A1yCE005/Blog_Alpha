@@ -46,6 +46,44 @@ article pre {
   background: var(--scrollbar-track);
 }
 
+.storm-scroll-container {
+  scrollbar-width: none;
+}
+
+.storm-scroll-container::-webkit-scrollbar {
+  display: none;
+}
+
+.storm-quote-body {
+  display: inline-block;
+  padding-inline: clamp(1.4rem, 5vw, 3.25rem);
+}
+
+.storm-quote-highlight {
+  position: relative;
+  display: inline-block;
+  text-shadow: 0 0 0.65rem rgba(167, 139, 250, 0.5),
+    0 0 1.9rem rgba(167, 139, 250, 0.34);
+}
+
+.storm-quote-highlight::before {
+  content: "";
+  position: absolute;
+  inset: -70% -45%;
+  background: radial-gradient(
+    circle at center,
+    rgba(167, 139, 250, 0.3) 0%,
+    rgba(167, 139, 250, 0.2) 32%,
+    rgba(167, 139, 250, 0.12) 58%,
+    rgba(167, 139, 250, 0.06) 74%,
+    transparent 100%
+  );
+  filter: blur(95px);
+  opacity: 0.92;
+  pointer-events: none;
+  z-index: -1;
+}
+
 article pre::-webkit-scrollbar {
   height: 10px;
 }
