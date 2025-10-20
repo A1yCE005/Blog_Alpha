@@ -44,6 +44,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
   const hasSeededRef = useRef(false);
   const scrollIdleTimeoutRef = useRef<number | null>(null);
   const suppressScrollHandlingRef = useRef(false);
+  const scrollAnimationFrameRef = useRef<number | null>(null);
   const initialHighlightRef = useRef(false);
   const itemRefs = useRef(new Map<number, HTMLDivElement | null>());
 
@@ -83,6 +84,14 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     itemRefs.current.clear();
   }, [poolSignature, pool.length]);
 
+  const cancelScrollAnimation = useCallback(() => {
+    if (scrollAnimationFrameRef.current !== null) {
+      cancelAnimationFrame(scrollAnimationFrameRef.current);
+      scrollAnimationFrameRef.current = null;
+    }
+    suppressScrollHandlingRef.current = false;
+  }, []);
+
   useEffect(() => {
     return () => {
       if (loadTimeoutRef.current !== null) {
@@ -93,8 +102,9 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         window.clearTimeout(scrollIdleTimeoutRef.current);
         scrollIdleTimeoutRef.current = null;
       }
+      cancelScrollAnimation();
     };
-  }, []);
+  }, [cancelScrollAnimation]);
 
   const attach = useCallback((entries: StormSample[]): StormItem[] => {
     return entries.map((entry) => ({
@@ -155,44 +165,116 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     }
   }, []);
 
-  const applyHighlightToCenter = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) {
-      setHighlightedId(null);
-      setDepthActive(false);
-      return;
-    }
+  const animateItemToCenter = useCallback(
+    (id: number) => {
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
 
-    const containerRect = container.getBoundingClientRect();
-    const containerCenter = containerRect.top + containerRect.height / 2;
-
-    let nearestId: number | null = null;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-
-    itemRefs.current.forEach((node, id) => {
+      const node = itemRefs.current.get(id);
       if (!node) {
         return;
       }
 
-      const rect = node.getBoundingClientRect();
-      const itemCenter = rect.top + rect.height / 2;
-      const distance = Math.abs(itemCenter - containerCenter);
+      const containerRect = container.getBoundingClientRect();
+      const itemRect = node.getBoundingClientRect();
+      const targetScrollTop =
+        container.scrollTop +
+        (itemRect.top - containerRect.top) +
+        itemRect.height / 2 -
+        container.clientHeight / 2;
 
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestId = id;
+      cancelScrollAnimation();
+
+      const start = container.scrollTop;
+      const delta = targetScrollTop - start;
+
+      if (Math.abs(delta) < 0.5) {
+        container.scrollTop = targetScrollTop;
+        return;
       }
-    });
 
-    if (nearestId === null) {
-      setHighlightedId(null);
-      setDepthActive(false);
-      return;
-    }
+      const duration = 720;
+      const easeInOutCubic = (t: number) =>
+        t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-    setHighlightedId(nearestId);
-    setDepthActive(true);
-  }, []);
+      let startTime: number | null = null;
+      suppressScrollHandlingRef.current = true;
+
+      const step = (timestamp: number) => {
+        if (startTime === null) {
+          startTime = timestamp;
+        }
+
+        const elapsed = timestamp - startTime;
+        const progress = Math.min(1, elapsed / duration);
+        const eased = easeInOutCubic(progress);
+
+        container.scrollTop = start + delta * eased;
+
+        if (progress < 1) {
+          scrollAnimationFrameRef.current = requestAnimationFrame(step);
+        } else {
+          container.scrollTop = targetScrollTop;
+          suppressScrollHandlingRef.current = false;
+          scrollAnimationFrameRef.current = null;
+        }
+      };
+
+      scrollAnimationFrameRef.current = requestAnimationFrame(step);
+    },
+    [cancelScrollAnimation]
+  );
+
+  const applyHighlightToCenter = useCallback(
+    (options?: { animate?: boolean }) => {
+      const { animate = false } = options ?? {};
+      const container = containerRef.current;
+      if (!container) {
+        setHighlightedId(null);
+        setDepthActive(false);
+        return;
+      }
+
+      const containerRect = container.getBoundingClientRect();
+      const containerCenter = containerRect.top + containerRect.height / 2;
+
+      let nearestId: number | null = null;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+
+      itemRefs.current.forEach((node, id) => {
+        if (!node) {
+          return;
+        }
+
+        const rect = node.getBoundingClientRect();
+        const itemCenter = rect.top + rect.height / 2;
+        const distance = Math.abs(itemCenter - containerCenter);
+
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestId = id;
+        }
+      });
+
+      if (nearestId === null) {
+        setHighlightedId(null);
+        setDepthActive(false);
+        return;
+      }
+
+      setHighlightedId(nearestId);
+      setDepthActive(true);
+
+      if (animate) {
+        requestAnimationFrame(() => {
+          animateItemToCenter(nearestId);
+        });
+      }
+    },
+    [animateItemToCenter]
+  );
 
   useEffect(() => {
     if (!shouldRestoreScrollRef.current) {
@@ -261,6 +343,8 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         return;
       }
 
+      cancelScrollAnimation();
+
       const target = event.currentTarget;
       const { scrollTop, scrollHeight, clientHeight } = target;
 
@@ -281,10 +365,10 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
 
       scrollIdleTimeoutRef.current = window.setTimeout(() => {
         scrollIdleTimeoutRef.current = null;
-        applyHighlightToCenter();
+        applyHighlightToCenter({ animate: true });
       }, 260);
     },
-    [applyHighlightToCenter, load, loading, pool.length, ready]
+    [applyHighlightToCenter, cancelScrollAnimation, load, loading, pool.length, ready]
   );
 
   useEffect(() => {
@@ -454,19 +538,19 @@ function StormQuoteCard({
   );
 
   const baseTextClasses =
-    "max-w-3xl whitespace-pre-line text-center text-3xl font-bold leading-relaxed tracking-[0.02em] transition-all duration-500 ease-out sm:text-[2.25rem]";
+    "max-w-3xl whitespace-pre-line text-center text-[1.9rem] font-bold leading-relaxed tracking-[0.01em] transition-all duration-500 ease-[cubic-bezier(0.16,0.84,0.44,1)] sm:text-[2.2rem]";
 
   const highlightedClasses = highlighted
-    ? "text-fuchsia-300 drop-shadow-[0_0_22px_rgba(192,132,252,0.45)]"
+    ? "text-violet-300 drop-shadow-[0_0_36px_rgba(167,139,250,0.65)]"
     : depthActive
-    ? "text-zinc-500/70 blur-[0.5px] opacity-60"
+    ? "text-zinc-500/60 blur-[1.8px] opacity-35 saturate-50"
     : "text-zinc-100";
 
   return (
     <article
       ref={setRefs}
-      className={`flex justify-center px-6 py-6 transition-transform duration-500 ease-out ${
-        highlighted ? "scale-[1.02]" : depthActive ? "scale-[0.98]" : "scale-[1]"
+      className={`flex justify-center px-6 py-6 transition-transform duration-700 ease-[cubic-bezier(0.33,1,0.68,1)] ${
+        highlighted ? "scale-[1.05]" : depthActive ? "scale-[0.94]" : "scale-[1]"
       }`}
     >
       <p className={`${baseTextClasses} ${highlightedClasses}`}>{text}</p>
