@@ -252,23 +252,21 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
               to start the squall.
             </div>
           ) : (
-            <div className="relative">
-              <div
-                ref={containerRef}
-                onScroll={handleScroll}
-                className="storm-scroll-container relative flex h-[70vh] flex-col overflow-y-auto rounded-[2.5rem] bg-zinc-950/80 p-6 shadow-[0_40px_120px_-40px_rgba(94,76,255,0.45)] sm:h-[75vh]"
-              >
-                <div className="flex flex-col gap-6">
-                  {items.map((item) => (
-                    <StormQuoteCard key={item.id} item={item} onReenter={() => rerollItem(item.id)} />
-                  ))}
-                </div>
-                {loading && (
-                  <div className="py-6 text-center text-xs font-semibold uppercase tracking-[0.45em] text-zinc-500">
-                    Cycling…
-                  </div>
-                )}
+            <div
+              ref={containerRef}
+              onScroll={handleScroll}
+              className="storm-scroll-container flex h-[70vh] flex-col overflow-y-auto px-2 sm:h-[75vh] sm:px-4"
+            >
+              <div className="flex flex-col items-center gap-12 py-10 sm:gap-16">
+                {items.map((item) => (
+                  <StormQuoteCard key={item.id} item={item} onReenter={() => rerollItem(item.id)} />
+                ))}
               </div>
+              {loading && (
+                <div className="pb-10 text-center text-xs font-semibold uppercase tracking-[0.45em] text-zinc-500">
+                  Cycling…
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -283,7 +281,7 @@ type StormQuoteCardProps = {
 };
 
 function StormQuoteCard({ item, onReenter }: StormQuoteCardProps) {
-  const { text, author, source } = item;
+  const { text } = item;
   const cardRef = useRef<HTMLDivElement>(null);
   const seenRef = useRef(false);
   const visibleRef = useRef(false);
@@ -316,20 +314,10 @@ function StormQuoteCard({ item, onReenter }: StormQuoteCardProps) {
   }, [onReenter]);
 
   return (
-    <article ref={cardRef} className="relative px-4 py-8 sm:px-6">
-      <div className="flex flex-col gap-6">
-        <p className="text-lg leading-relaxed text-zinc-100 whitespace-pre-line sm:text-xl">
-          {text}
-        </p>
-        {(author || source) && (
-          <p className="text-sm font-medium text-zinc-400">
-            <span className="text-zinc-500">—</span>{" "}
-            {author}
-            {author && source ? " · " : ""}
-            {source}
-          </p>
-        )}
-      </div>
+    <article ref={cardRef} className="flex justify-center px-6 py-4">
+      <p className="max-w-3xl text-center text-2xl font-light leading-relaxed text-zinc-100 whitespace-pre-line sm:text-[1.75rem]">
+        {text}
+      </p>
     </article>
   );
 }
