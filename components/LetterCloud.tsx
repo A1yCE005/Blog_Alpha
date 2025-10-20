@@ -53,7 +53,7 @@ const CONFIG = {
   funnelJitterPx: 6,       // 汇聚时的轻微抖散
 
   // 待机循环
-  idleWords: ["Lighthouse", "Halo", "Hi"],
+  idleWords: ["Lighthouse", "Halo","⌘Q","Storm"],
   idleHoldMs: 4200,
   idleScatterMs: 1800,
   idleGatherDelayMs: 520,
