@@ -15,6 +15,7 @@ type StormPageContentProps = {
 const IDLE_DELAY_MS = 120;
 const POINTER_MOVE_DEADZONE_MS = 100;
 const POINTER_MOVE_RESET_GAP_MS = 160;
+const OVERSCAN_ROWS = 2;
 
 type PointerMoveState = {
   startTime: number;
@@ -22,22 +23,41 @@ type PointerMoveState = {
   triggered: boolean;
 };
 
+const clamp = (value: number, min: number, max: number) => {
+  if (value < min) {
+    return min;
+  }
+  if (value > max) {
+    return max;
+  }
+  return value;
+};
+
+const modulo = (value: number, divisor: number) => {
+  if (divisor === 0) {
+    return 0;
+  }
+  const remainder = value % divisor;
+  return remainder < 0 ? remainder + divisor : remainder;
+};
+
 export function StormPageContent({ quotes }: StormPageContentProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
-  const repeatedQuotes = React.useMemo(() => {
-    if (quotes.length === 0) {
-      return quotes;
-    }
-    return [...quotes, ...quotes, ...quotes];
-  }, [quotes]);
 
   const containerRef = React.useRef<HTMLDivElement | null>(null);
-  const baseHeightRef = React.useRef(0);
+  const measurementRef = React.useRef<HTMLLIElement | null>(null);
   const idleTimeoutRef = React.useRef<number | null>(null);
   const focusUpdateRef = React.useRef<number | null>(null);
+  const containerHeightRef = React.useRef(0);
+  const rowHeightRef = React.useRef(0);
+  const segmentHeightRef = React.useRef(0);
 
   const [focusedIndex, setFocusedIndex] = React.useState(0);
   const [isIdle, setIsIdle] = React.useState(() => !prefersReducedMotion);
+  const [rowHeight, setRowHeight] = React.useState(0);
+  const [scrollTop, setScrollTop] = React.useState(0);
+  const [visibleRowEstimate, setVisibleRowEstimate] = React.useState(1);
+
   const initialFocusRef = React.useRef(0);
   const hasAlignedInitialFocusRef = React.useRef(false);
   const pendingFocusRef = React.useRef<number | null>(null);
@@ -49,7 +69,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
   });
 
   const clearIdleTimeout = React.useCallback(() => {
-    if (idleTimeoutRef.current) {
+    if (idleTimeoutRef.current !== null) {
       window.clearTimeout(idleTimeoutRef.current);
       idleTimeoutRef.current = null;
     }
@@ -113,51 +133,10 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
   const isInteractive = !isTransitioning;
 
   React.useEffect(() => {
-    const container = containerRef.current;
-    if (!container || quotes.length === 0) {
-      return;
-    }
-
-    const updateBaseHeight = () => {
-      const totalHeight = container.scrollHeight;
-      if (totalHeight <= 0) {
-        return;
-      }
-
-      const newBase = totalHeight / 3;
-      if (!Number.isFinite(newBase) || newBase <= 0) {
-        return;
-      }
-
-      const previousBase = baseHeightRef.current;
-      baseHeightRef.current = newBase;
-
-      const relativeOffset = previousBase > 0 ? container.scrollTop - previousBase : 0;
-      const clampedOffset = Math.max(0, Math.min(relativeOffset, newBase));
-      container.scrollTop = newBase + clampedOffset;
-      scheduleFocusUpdate();
-    };
-
-    const raf = window.requestAnimationFrame(updateBaseHeight);
-    const resizeObserver = new ResizeObserver(() => {
-      window.requestAnimationFrame(updateBaseHeight);
-    });
-    resizeObserver.observe(container);
-
-    return () => {
-      window.cancelAnimationFrame(raf);
-      resizeObserver.disconnect();
-    };
-  }, [quotes.length, scheduleFocusUpdate]);
-
-  React.useEffect(() => {
-    scheduleFocusUpdate();
-  }, [repeatedQuotes, scheduleFocusUpdate]);
-
-  React.useEffect(() => {
     if (quotes.length === 0) {
       initialFocusRef.current = 0;
       setFocusedIndex(0);
+      pendingFocusRef.current = 0;
       hasAlignedInitialFocusRef.current = true;
       return;
     }
@@ -169,68 +148,74 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     hasAlignedInitialFocusRef.current = false;
   }, [quotes.length]);
 
-  React.useEffect(() => {
-    if (quotes.length === 0) {
+  const updateMeasurements = React.useCallback(() => {
+    const container = containerRef.current;
+    const measure = measurementRef.current;
+    if (!container || !measure) {
       return;
     }
 
-    let frame: number | null = null;
-
-    const alignToInitialQuote = () => {
-      const container = containerRef.current;
-      if (!container) {
-        frame = window.requestAnimationFrame(alignToInitialQuote);
-        return;
+    const containerRect = container.getBoundingClientRect();
+    if (containerRect.height > 0) {
+      containerHeightRef.current = containerRect.height;
+      if (rowHeightRef.current > 0) {
+        setVisibleRowEstimate(Math.max(1, Math.round(containerRect.height / rowHeightRef.current)));
       }
+    }
 
-      if (hasAlignedInitialFocusRef.current) {
-        return;
+    const measureRect = measure.getBoundingClientRect();
+    if (measureRect.height > 0) {
+      rowHeightRef.current = measureRect.height;
+      setRowHeight(measureRect.height);
+      if (quotes.length > 0) {
+        segmentHeightRef.current = measureRect.height * quotes.length;
       }
+    }
+  }, [quotes.length]);
 
-      const items = Array.from(
-        container.querySelectorAll<HTMLLIElement>("[data-base-index][data-loop-index]"),
-      );
+  React.useEffect(() => {
+    const container = containerRef.current;
+    const measure = measurementRef.current;
+    if (!container || !measure) {
+      return;
+    }
 
-      if (items.length === 0) {
-        frame = window.requestAnimationFrame(alignToInitialQuote);
-        return;
-      }
+    const observer = new ResizeObserver(() => {
+      updateMeasurements();
+      hasAlignedInitialFocusRef.current = false;
+    });
+    observer.observe(container);
+    observer.observe(measure);
 
-      const preferredBaseIndex = initialFocusRef.current;
-      const target = items.find((item) => {
-        if (item.dataset.loopIndex !== "1") {
-          return false;
-        }
-
-        const parsedIndex = Number.parseInt(item.dataset.baseIndex ?? "0", 10);
-        return parsedIndex === preferredBaseIndex;
-      });
-
-      if (!target) {
-        frame = window.requestAnimationFrame(alignToInitialQuote);
-        return;
-      }
-
-      const containerHeight = container.clientHeight;
-      const scrollTarget = target.offsetTop - containerHeight / 2 + target.clientHeight / 2;
-      const maxScroll = Math.max(0, container.scrollHeight - containerHeight);
-      const nextScrollTop = Math.max(0, Math.min(scrollTarget, maxScroll));
-
-      container.scrollTop = nextScrollTop;
-      hasAlignedInitialFocusRef.current = true;
-      setFocusedIndex(preferredBaseIndex);
-      pendingFocusRef.current = preferredBaseIndex;
-      scheduleFocusUpdate();
-    };
-
-    frame = window.requestAnimationFrame(alignToInitialQuote);
+    updateMeasurements();
 
     return () => {
-      if (frame !== null) {
-        window.cancelAnimationFrame(frame);
-      }
+      observer.disconnect();
     };
-  }, [quotes.length, scheduleFocusUpdate]);
+  }, [updateMeasurements]);
+
+  React.useEffect(() => {
+    const container = containerRef.current;
+    if (!container || quotes.length === 0 || rowHeight <= 0) {
+      return;
+    }
+
+    const segment = rowHeight * quotes.length;
+    segmentHeightRef.current = segment;
+    if (!hasAlignedInitialFocusRef.current) {
+      const preferredBaseIndex = clamp(initialFocusRef.current, 0, quotes.length - 1);
+      const target = segment + preferredBaseIndex * rowHeight;
+      container.scrollTop = target;
+      setScrollTop(target);
+      setFocusedIndex(preferredBaseIndex);
+      pendingFocusRef.current = preferredBaseIndex;
+      hasAlignedInitialFocusRef.current = true;
+      scheduleFocusUpdate();
+      return;
+    }
+
+    setScrollTop(container.scrollTop);
+  }, [quotes.length, rowHeight, scheduleFocusUpdate]);
 
   React.useEffect(() => {
     if (prefersReducedMotion) {
@@ -277,17 +262,19 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     if (!prefersReducedMotion) {
       resetIdle();
     }
-    const container = event.currentTarget;
-    const baseHeight = baseHeightRef.current;
 
-    if (baseHeight > 0) {
-      if (container.scrollTop < baseHeight * 0.5) {
-        container.scrollTop += baseHeight;
-      } else if (container.scrollTop > baseHeight * 1.5) {
-        container.scrollTop -= baseHeight;
+    const container = event.currentTarget;
+    const segment = segmentHeightRef.current;
+
+    if (segment > 0) {
+      if (container.scrollTop < segment) {
+        container.scrollTop += segment;
+      } else if (container.scrollTop >= segment * 2) {
+        container.scrollTop -= segment;
       }
     }
 
+    setScrollTop(container.scrollTop);
     scheduleFocusUpdate();
   };
 
@@ -334,47 +321,107 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     [handleImmediateInteraction, prefersReducedMotion, resetIdle],
   );
 
-  const getCardState = (baseIndex: number) => {
-    if (!isIdle) {
-      return "active";
+  const getCardState = React.useCallback(
+    (baseIndex: number) => {
+      if (!isIdle) {
+        return "active";
+      }
+      if (baseIndex === focusedIndex) {
+        return "focused";
+      }
+      return "idle";
+    },
+    [focusedIndex, isIdle],
+  );
+
+  const segment = React.useMemo(() => {
+    if (quotes.length === 0 || rowHeight <= 0) {
+      return 0;
     }
-    if (baseIndex === focusedIndex) {
-      return "focused";
+    return rowHeight * quotes.length;
+  }, [quotes.length, rowHeight]);
+
+  const rowsToRender = React.useMemo(() => {
+    if (quotes.length === 0) {
+      return [];
     }
-    return "idle";
-  };
 
-  const renderQuote = (quote: string, extendedIndex: number) => {
-    const baseIndex = quotes.length === 0 ? extendedIndex : extendedIndex % quotes.length;
-    const state = getCardState(baseIndex);
+    if (rowHeight <= 0 || segment <= 0) {
+      return quotes.map((quote, index) => {
+        const state = getCardState(index);
+        const stateClasses =
+          state === "focused"
+            ? "text-violet-300 blur-0 opacity-100 scale-100"
+            : state === "active"
+              ? "text-zinc-100 blur-0 opacity-100 scale-100"
+              : "text-zinc-500 blur-sm opacity-60 scale-95";
 
-    const stateClasses =
-      state === "focused"
-        ? "text-violet-300 blur-0 opacity-100 scale-100"
-        : state === "active"
-          ? "text-zinc-100 blur-0 opacity-100 scale-100"
-          : "text-zinc-500 blur-sm opacity-60 scale-95";
+        return (
+          <li
+            key={`${index}-fallback`}
+            data-base-index={index}
+            className="flex min-h-[26vh] items-center justify-center py-4"
+          >
+            <blockquote
+              className={`max-w-3xl text-center text-2xl font-semibold leading-tight transition-all duration-500 ease-out sm:text-3xl ${stateClasses}`}
+            >
+              {quote}
+            </blockquote>
+          </li>
+        );
+      });
+    }
 
-    const loopIndex =
-      quotes.length === 0
-        ? extendedIndex
-        : Math.floor(extendedIndex / quotes.length);
+    const containerHeight = containerHeightRef.current;
+    const viewportRows = Math.ceil(containerHeight / rowHeight);
+    const baseCount = Math.max(1, visibleRowEstimate, viewportRows);
+    const visibleCount = baseCount + OVERSCAN_ROWS * 2;
 
-    return (
-      <li
-        key={`${baseIndex}-${extendedIndex}`}
-        data-base-index={baseIndex}
-        data-loop-index={loopIndex}
-        className="flex min-h-[34vh] items-center justify-center py-6 will-change-transform"
-      >
-        <blockquote
-          className={`max-w-3xl text-center text-2xl font-semibold leading-tight transition-all duration-500 ease-out sm:text-3xl ${stateClasses}`}
+    const bandScrollTop = scrollTop - segment;
+    const baseVirtualIndex = Math.floor(bandScrollTop / rowHeight);
+    const startVirtualIndex = baseVirtualIndex - OVERSCAN_ROWS;
+    const endVirtualIndex = startVirtualIndex + visibleCount;
+    const rendered: React.ReactNode[] = [];
+
+    for (let virtualIndex = startVirtualIndex; virtualIndex < endVirtualIndex; virtualIndex += 1) {
+      const baseIndex = modulo(virtualIndex, quotes.length);
+      let offsetTop = segment + virtualIndex * rowHeight;
+      if (segment > 0) {
+        while (offsetTop < segment) {
+          offsetTop += segment;
+        }
+        while (offsetTop >= segment * 2) {
+          offsetTop -= segment;
+        }
+      }
+
+      const state = getCardState(baseIndex);
+      const stateClasses =
+        state === "focused"
+          ? "text-violet-300 blur-0 opacity-100 scale-100"
+          : state === "active"
+            ? "text-zinc-100 blur-0 opacity-100 scale-100"
+            : "text-zinc-500 blur-sm opacity-60 scale-95";
+
+      rendered.push(
+        <li
+          key={`${baseIndex}-${virtualIndex}`}
+          data-base-index={baseIndex}
+          data-virtual-index={virtualIndex}
+          className="absolute left-0 right-0 flex min-h-[26vh] items-center justify-center py-4 will-change-transform"
+          style={{ transform: `translateY(${offsetTop}px)` }}
         >
-          {quote}
-        </blockquote>
-      </li>
-    );
-  };
+          <blockquote
+            className={`max-w-3xl text-center text-2xl font-semibold leading-tight transition-all duration-500 ease-out sm:text-3xl ${stateClasses}`}
+          >
+            {quotes[baseIndex]}
+          </blockquote>
+        </li>,
+      );
+    }
+
+    return rendered;
+  }, [getCardState, quotes, rowHeight, scrollTop, segment, visibleRowEstimate]);
 
   return (
     <>
@@ -408,8 +455,21 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
             aria-label="Storm quotes"
             tabIndex={isInteractive ? 0 : -1}
           >
-            <ul className="flex flex-col gap-4">
-              {repeatedQuotes.map((quote, index) => renderQuote(quote, index))}
+            <ul
+              className="relative"
+              style={{ height: segment > 0 ? segment * 3 : quotes.length * 240 }}
+            >
+              {rowsToRender}
+            </ul>
+            <ul
+              aria-hidden
+              className="pointer-events-none absolute left-0 top-0 w-full opacity-0"
+            >
+              <li ref={measurementRef} className="flex min-h-[26vh] items-center justify-center py-4">
+                <blockquote className="max-w-3xl text-center text-2xl font-semibold leading-tight sm:text-3xl">
+                  {quotes[0] ?? ""}
+                </blockquote>
+              </li>
             </ul>
           </div>
         </div>
@@ -417,4 +477,3 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     </>
   );
 }
-
