@@ -811,6 +811,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       if (!lastTs) lastTs = ts;
       const dt = ts - lastTs; lastTs = ts;
       const fscale = Math.min(2, Math.max(0.5, dt / 16.6667));
+      const idleScatterDamping = Math.pow(0.984, fscale);
+      const ambientDamping = Math.pow(0.985, fscale);
       elapsedMs += dt;
 
       const w = canvas.width / DPR, h = canvas.height / DPR;
@@ -927,8 +929,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             const jitterY = Math.cos((elapsedMs * 0.0026 + p.tx * 17) * 0.0021) * idleAmbientDrift * 0.12;
             p.vx += ((swirlA * 0.06) + (swirlB * 0.11) + jitterX) * fscale;
             p.vy += ((swirlB * 0.07) - (swirlA * 0.05) + jitterY) * fscale;
-            p.vx *= 0.984;
-            p.vy *= 0.984;
+            p.vx *= idleScatterDamping;
+            p.vy *= idleScatterDamping;
             p.x += p.vx * fscale;
             p.y += p.vy * fscale;
             const margin = Math.max(18, gap * 2.2);
@@ -937,8 +939,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             if (p.y < -margin) { p.y = -margin; p.vy *= -0.36; }
             else if (p.y > h + margin) { p.y = h + margin; p.vy *= -0.48; }
           } else {
-            p.vx *= 0.985;
-            p.vy *= 0.985;
+            p.vx *= ambientDamping;
+            p.vy *= ambientDamping;
             p.x += p.vx * fscale;
             p.y += p.vy * fscale;
           }
