@@ -134,3 +134,14 @@ a { text-decoration: none; }
     transition: none;
   }
 }
+
+.storm-scroll-container {
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+}
+
+.storm-scroll-container:focus-visible {
+  outline: 2px solid rgba(196, 181, 253, 0.6);
+  outline-offset: 6px;
+}
