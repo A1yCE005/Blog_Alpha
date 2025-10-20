@@ -933,15 +933,27 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
             if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
           } else if (phaseNow === "idleScatter") {
+            const scatterProgress = clamp01(idleScatterElapsed / Math.max(1, idleScatter));
+            const scatterEase = 1 - easeInOut(scatterProgress);
             const swirlA = Math.sin((animElapsedMs + p.tx * 7 + p.ty * 5) * 0.003) * 0.28;
             const swirlB = Math.cos((animElapsedMs * 0.0018 + p.ty * 9 - p.tx * 6) * 0.004) * 0.22;
             const jitterX = Math.sin((animElapsedMs + p.ty * 13) * 0.0023) * idleAmbientDrift * 0.12;
             const jitterY = Math.cos((animElapsedMs * 0.0026 + p.tx * 17) * 0.0021) * idleAmbientDrift * 0.12;
-            p.vx += ((swirlA * 0.06) + (swirlB * 0.11) + jitterX) * dtFactor;
-            p.vy += ((swirlB * 0.07) - (swirlA * 0.05) + jitterY) * dtFactor;
-            const scatterDecay = Math.pow(0.984, dtFactor);
-            p.vx *= scatterDecay;
-            p.vy *= scatterDecay;
+            const swirlScale = 0.7 + scatterEase * 0.6;
+            p.vx += (((swirlA * 0.06) + (swirlB * 0.11)) * swirlScale + jitterX * scatterEase) * dtFactor;
+            p.vy += (((swirlB * 0.07) - (swirlA * 0.05)) * swirlScale + jitterY * scatterEase) * dtFactor;
+            const speed = Math.hypot(p.vx, p.vy);
+            if (speed > 1e-3) {
+              const decel = (0.018 + easeInOut(scatterProgress) * 0.28) * dtFactor;
+              const nextSpeed = Math.max(0, speed - decel);
+              const scale = nextSpeed / speed;
+              p.vx *= scale;
+              p.vy *= scale;
+              if (nextSpeed < 0.02 && scatterProgress > 0.98) {
+                p.vx = 0;
+                p.vy = 0;
+              }
+            }
             p.x += p.vx * dtFactor;
             p.y += p.vy * dtFactor;
             const margin = Math.max(18, gap * 2.2);
