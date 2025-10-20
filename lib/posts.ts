@@ -43,6 +43,22 @@ function normalizeTags(raw: unknown): string[] {
   return [];
 }
 
+function sanitizeExcerpt(source: string): string {
+  const withoutMarkdown = source
+    .replace(/!\[([^\]]*)\]\([^\)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/~~([^~]+)~~/g, "$1")
+    .replace(/(\*\*|__)([\s\S]+?)\1/g, "$2")
+    .replace(/(\*|_)([\s\S]+?)\1/g, "$2")
+    .replace(/^>\s+/gm, "")
+    .replace(/^#+\s*/gm, "")
+    .replace(/^\s*([-*+]\s+)/gm, "")
+    .replace(/<[^>]+>/g, "");
+
+  return withoutMarkdown.replace(/\s+/g, " ").trim();
+}
+
 function truncateExcerpt(text: string, limit = 320) {
   if (text.length <= limit) return text;
   const truncated = text.slice(0, limit);
@@ -64,7 +80,7 @@ async function parsePostFile(filePath: string, slug: string): Promise<PostConten
       ? data.excerpt
       : content.split(/\n\s*\n/)[0] ?? "";
 
-  const cleanedExcerpt = excerptSource.replace(/\s+/g, " ").trim();
+  const cleanedExcerpt = sanitizeExcerpt(excerptSource);
   const excerpt = truncateExcerpt(cleanedExcerpt);
 
   const readingTime =
