@@ -227,6 +227,17 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
 
       const startTime = performance.now();
 
+      const finish = () => {
+        const host = containerRef.current;
+        if (!host) {
+          return;
+        }
+        scrollAnimationFrameRef.current = null;
+        requestAnimationFrame(() => {
+          suppressScrollHandlingRef.current = false;
+        });
+      };
+
       const step = (timestamp: number) => {
         const host = containerRef.current;
         if (!host) {
@@ -240,17 +251,16 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
 
         const nextTarget = resolveTargetScrollTop(node, host);
         const nextTop = startTop + (nextTarget - startTop) * eased;
-        host.scrollTop = nextTop;
+        const remaining = Math.abs(nextTarget - nextTop);
 
-        if (progress < 1) {
-          scrollAnimationFrameRef.current = window.requestAnimationFrame(step);
-        } else {
-          host.scrollTop = resolveTargetScrollTop(node, host);
-          scrollAnimationFrameRef.current = null;
-          requestAnimationFrame(() => {
-            suppressScrollHandlingRef.current = false;
-          });
+        if (progress >= 1 || remaining <= 0.35) {
+          host.scrollTop = nextTarget;
+          finish();
+          return;
         }
+
+        host.scrollTop = nextTop;
+        scrollAnimationFrameRef.current = window.requestAnimationFrame(step);
       };
 
       scrollAnimationFrameRef.current = window.requestAnimationFrame(step);
@@ -648,7 +658,7 @@ function StormQuoteCard({
       ref={setRefs}
       className={`flex justify-center px-6 py-8 transition-transform duration-500 ease-out ${
         highlighted ? "scale-[1.05]" : depthActive ? "scale-[0.94]" : "scale-[1]"
-      }`}
+      } overflow-visible`}
     >
       <p className={`${baseTextClasses} ${highlightedClasses}`}>{text}</p>
     </article>
