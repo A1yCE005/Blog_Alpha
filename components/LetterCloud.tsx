@@ -811,6 +811,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
       if (!lastTs) lastTs = ts;
       const dt = ts - lastTs; lastTs = ts;
       const fscale = Math.min(2, Math.max(0.5, dt / 16.6667));
+      const applyFriction = (factor: number) => Math.pow(factor, fscale);
       elapsedMs += dt;
 
       const w = canvas.width / DPR, h = canvas.height / DPR;
@@ -850,7 +851,8 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             const groundY = h - 10;
             if (p.y > groundY) {
               p.y = groundY; p.vy *= bounce;
-              p.vx = p.vx * groundFriction + (Math.random() - 0.5) * 1.6;
+              const groundFrictionNow = applyFriction(groundFriction);
+              p.vx = p.vx * groundFrictionNow + (Math.random() - 0.5) * 1.6;
               if (Math.abs(p.vy) < 0.12) p.vy = 0;
             }
             const wall = 8;
@@ -927,8 +929,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             const jitterY = Math.cos((elapsedMs * 0.0026 + p.tx * 17) * 0.0021) * idleAmbientDrift * 0.12;
             p.vx += ((swirlA * 0.06) + (swirlB * 0.11) + jitterX) * fscale;
             p.vy += ((swirlB * 0.07) - (swirlA * 0.05) + jitterY) * fscale;
-            p.vx *= 0.984;
-            p.vy *= 0.984;
+            const gustFriction = applyFriction(0.984);
+            p.vx *= gustFriction;
+            p.vy *= gustFriction;
             p.x += p.vx * fscale;
             p.y += p.vy * fscale;
             const margin = Math.max(18, gap * 2.2);
@@ -937,8 +940,9 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             if (p.y < -margin) { p.y = -margin; p.vy *= -0.36; }
             else if (p.y > h + margin) { p.y = h + margin; p.vy *= -0.48; }
           } else {
-            p.vx *= 0.985;
-            p.vy *= 0.985;
+            const idleFriction = applyFriction(0.985);
+            p.vx *= idleFriction;
+            p.vy *= idleFriction;
             p.x += p.vx * fscale;
             p.y += p.vy * fscale;
           }
