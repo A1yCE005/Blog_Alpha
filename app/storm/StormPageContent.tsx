@@ -19,12 +19,10 @@ const LOAD_THRESHOLD = 240;
 
 type StormPoolQuote = StormQuote & {
   poolIndex: number;
-  baseHue: number;
 };
 
 type StormSample = StormQuote & {
   poolIndex: number;
-  hue: number;
 };
 
 type StormItem = StormSample & {
@@ -54,7 +52,6 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     return quotes.map((quote, index) => ({
       ...quote,
       poolIndex: index,
-      baseHue: Math.round((index * 137.508) % 360),
     }));
   }, [quotes]);
 
@@ -96,15 +93,12 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
   const sample = useCallback((): StormSample => {
     const index = Math.floor(Math.random() * pool.length);
     const base = pool[index]!;
-    const hueJitter = (Math.random() - 0.5) * 24;
-    const hue = (base.baseHue + hueJitter + 360) % 360;
 
     return {
       text: base.text,
       author: base.author,
       source: base.source,
       poolIndex: base.poolIndex,
-      hue,
     } satisfies StormSample;
   }, [pool]);
 
@@ -245,7 +239,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
               className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-500 transition-colors duration-200 hover:text-violet-200"
               tabIndex={isInteractive ? undefined : -1}
             >
-              <span aria-hidden>←</span> Back to main blog
+              <span aria-hidden>←</span> Back to Lighthouse
             </Link>
           </div>
 
@@ -262,7 +256,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
               <div
                 ref={containerRef}
                 onScroll={handleScroll}
-                className="storm-scroll-container relative flex h-[70vh] flex-col overflow-y-auto rounded-[2.5rem] border border-white/10 bg-zinc-950/80 p-6 shadow-[0_40px_120px_-40px_rgba(94,76,255,0.45)] sm:h-[75vh]"
+                className="storm-scroll-container relative flex h-[70vh] flex-col overflow-y-auto rounded-[2.5rem] bg-zinc-950/80 p-6 shadow-[0_40px_120px_-40px_rgba(94,76,255,0.45)] sm:h-[75vh]"
               >
                 <div className="flex flex-col gap-6">
                   {items.map((item) => (
@@ -289,7 +283,7 @@ type StormQuoteCardProps = {
 };
 
 function StormQuoteCard({ item, onReenter }: StormQuoteCardProps) {
-  const { text, author, source, hue, poolIndex } = item;
+  const { text, author, source } = item;
   const cardRef = useRef<HTMLDivElement>(null);
   const seenRef = useRef(false);
   const visibleRef = useRef(false);
@@ -321,32 +315,15 @@ function StormQuoteCard({ item, onReenter }: StormQuoteCardProps) {
     };
   }, [onReenter]);
 
-  const gradientStyle = useMemo(() => {
-    const secondaryHue = (hue + 32) % 360;
-    return {
-      background:
-        `radial-gradient(circle at 20% 20%, hsl(${hue} 80% 22% / 0.4), transparent 55%), ` +
-        `radial-gradient(circle at 80% 10%, hsl(${secondaryHue} 80% 20% / 0.35), transparent 60%), ` +
-        `linear-gradient(135deg, hsl(${hue} 70% 14% / 0.8), hsl(${secondaryHue} 70% 10% / 0.85))`,
-    };
-  }, [hue]);
-
   return (
-    <article
-      ref={cardRef}
-      className="relative overflow-hidden rounded-3xl border border-white/10 bg-zinc-900/70 p-8 shadow-[0_30px_80px_-45px_rgba(86,76,255,0.6)] transition-transform duration-500 ease-out hover:-translate-y-1"
-    >
-      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-60" style={gradientStyle} />
-      <div className="relative flex flex-col gap-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.45em] text-zinc-500">
-          Storm pool #{String(poolIndex + 1).padStart(2, "0")}
-        </p>
+    <article ref={cardRef} className="relative px-4 py-8 sm:px-6">
+      <div className="flex flex-col gap-6">
         <p className="text-lg leading-relaxed text-zinc-100 whitespace-pre-line sm:text-xl">
           {text}
         </p>
         {(author || source) && (
-          <p className="text-sm font-medium text-zinc-300">
-            <span className="uppercase tracking-[0.3em] text-zinc-500">—</span>{" "}
+          <p className="text-sm font-medium text-zinc-400">
+            <span className="text-zinc-500">—</span>{" "}
             {author}
             {author && source ? " · " : ""}
             {source}
