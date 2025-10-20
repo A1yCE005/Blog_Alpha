@@ -809,9 +809,11 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
     function step(ts?: number) {
       if (ts == null || Number.isNaN(ts)) ts = performance.now();
       if (!lastTs) lastTs = ts;
-      const dt = ts - lastTs; lastTs = ts;
-      const fscale = Math.min(2, Math.max(0.5, dt / 16.6667));
-      elapsedMs += dt;
+      const rawDt = Math.max(0, ts - lastTs);
+      lastTs = ts;
+      const simDt = Math.min(rawDt, 100);
+      const dtFactor = simDt / (1000 / 60);
+      elapsedMs += rawDt;
 
       const w = canvas.width / DPR, h = canvas.height / DPR;
 
@@ -832,20 +834,20 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             markGatherStart(!introSettled && idleState === "inactive");
           }
         } else if (phase === "exit") {
-          exitElapsedMs += dt;
+          exitElapsedMs += rawDt;
           wasMorph = false;
         } else {
           wasMorph = false;
         }
 
-        const a = Math.min(0.9, CONFIG.mouseSmooth * fscale);
+        const a = Math.min(0.9, (CONFIG.mouseSmooth ?? 0) * dtFactor);
         smouse.x += (mouse.x - smouse.x) * a;
         smouse.y += (mouse.y - smouse.y) * a;
 
         for (const p of particles) {
           if (phase === "drop") {
-            p.vy += gravity * 0.08 * fscale;
-            p.x += p.vx * fscale; p.y += p.vy * fscale;
+            p.vy += gravity * 0.08 * dtFactor;
+            p.x += p.vx * dtFactor; p.y += p.vy * dtFactor;
 
             const groundY = h - 10;
             if (p.y > groundY) {
@@ -859,7 +861,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
               else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
             } else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
           } else if (phase === "morph") {
-            morphElapsedMs += dt;
+            morphElapsedMs += rawDt;
 
             let pushX = 0, pushY = 0;
             const dxm = p.x - smouse.x, dym = p.y - smouse.y;
@@ -916,7 +918,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             const kNow = baseK + easeInOut(tLocal) * gainK;
 
             const dx = targetX - p.x, dy = targetY - p.y;
-            const tt = 1 - Math.pow(1 - kNow, Math.max(1, dt / 16.67));
+            const tt = 1 - Math.pow(1 - kNow, Math.max(0, dtFactor));
             p.x += dx * tt; p.y += dy * tt;
 
             if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
@@ -925,22 +927,24 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             const swirlB = Math.cos((elapsedMs * 0.0018 + p.ty * 9 - p.tx * 6) * 0.004) * 0.22;
             const jitterX = Math.sin((elapsedMs + p.ty * 13) * 0.0023) * idleAmbientDrift * 0.12;
             const jitterY = Math.cos((elapsedMs * 0.0026 + p.tx * 17) * 0.0021) * idleAmbientDrift * 0.12;
-            p.vx += ((swirlA * 0.06) + (swirlB * 0.11) + jitterX) * fscale;
-            p.vy += ((swirlB * 0.07) - (swirlA * 0.05) + jitterY) * fscale;
-            p.vx *= 0.984;
-            p.vy *= 0.984;
-            p.x += p.vx * fscale;
-            p.y += p.vy * fscale;
+            p.vx += ((swirlA * 0.06) + (swirlB * 0.11) + jitterX) * dtFactor;
+            p.vy += ((swirlB * 0.07) - (swirlA * 0.05) + jitterY) * dtFactor;
+            const scatterDecay = Math.pow(0.984, dtFactor);
+            p.vx *= scatterDecay;
+            p.vy *= scatterDecay;
+            p.x += p.vx * dtFactor;
+            p.y += p.vy * dtFactor;
             const margin = Math.max(18, gap * 2.2);
             if (p.x < -margin) { p.x = -margin; p.vx *= -0.42; }
             else if (p.x > w + margin) { p.x = w + margin; p.vx *= -0.42; }
             if (p.y < -margin) { p.y = -margin; p.vy *= -0.36; }
             else if (p.y > h + margin) { p.y = h + margin; p.vy *= -0.48; }
           } else {
-            p.vx *= 0.985;
-            p.vy *= 0.985;
-            p.x += p.vx * fscale;
-            p.y += p.vy * fscale;
+            const idleDecay = Math.pow(0.985, dtFactor);
+            p.vx *= idleDecay;
+            p.vy *= idleDecay;
+            p.x += p.vx * dtFactor;
+            p.y += p.vy * dtFactor;
           }
         }
 
@@ -951,17 +955,17 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           }
 
           if (idleState === "waiting") {
-            idleHoldElapsed += dt;
+            idleHoldElapsed += rawDt;
             if (idleHoldElapsed >= idleHold) {
               startIdleScatter();
             }
           } else if (idleState === "gust") {
-            idleScatterElapsed += dt;
+            idleScatterElapsed += rawDt;
             if (idleScatterElapsed >= idleScatter) {
               scheduleIdleGather();
             }
           } else if (idleState === "awaitGather") {
-            idleGatherDelayLeft -= dt;
+            idleGatherDelayLeft -= rawDt;
             if (idleGatherDelayLeft <= 0) {
               beginIdleGather();
             }
