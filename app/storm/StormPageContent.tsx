@@ -484,9 +484,25 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
       setHighlightedId(null);
       setDepthActive(false);
 
+      if (pointerActiveRef.current) {
+        pendingHighlightRef.current = true;
+        if (scrollIdleTimeoutRef.current !== null) {
+          window.clearTimeout(scrollIdleTimeoutRef.current);
+          scrollIdleTimeoutRef.current = null;
+        }
+        return;
+      }
+
       scheduleIdleHighlight();
     },
-    [cancelScrollAnimation, load, loading, pool.length, ready, scheduleIdleHighlight]
+    [
+      cancelScrollAnimation,
+      load,
+      loading,
+      pool.length,
+      ready,
+      scheduleIdleHighlight,
+    ]
   );
 
   useEffect(() => {
