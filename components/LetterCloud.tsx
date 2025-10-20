@@ -147,6 +147,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const tempRef = React.useRef<HTMLCanvasElement | null>(null);
   const readyRef = React.useRef(false);
+  const rafDeltaRatioRef = React.useRef(1);
   const [ready, setReady] = React.useState(false);
   const prefersReduced = usePrefersReducedMotion();
   const glyphs = React.useMemo(() => CONFIG.bgGlyphs.split(""), []);
@@ -813,20 +814,30 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
         lastTs = ts;
         lastWallMs = wallNow;
       }
-      let dt = ts - lastTs;
+      let rafDt = ts - lastTs;
       const wallDt = wallNow - lastWallMs;
       lastTs = ts;
       lastWallMs = wallNow;
       const fallbackDt = wallDt > 0 ? wallDt : 0;
-      if (!Number.isFinite(dt) || dt <= 0) {
-        dt = fallbackDt;
-      } else if (fallbackDt > 0 && dt < fallbackDt * 0.75) {
-        // Safari on ProMotion displays may report smaller rAF deltas than real time,
-        // which slows the animation. Prefer the wall-clock delta when it diverges. 
-        dt = fallbackDt;
+
+      let physicsDt = Number.isFinite(rafDt) && rafDt > 0 ? rafDt : fallbackDt;
+      if (fallbackDt > 0 && Number.isFinite(rafDt) && rafDt > 0) {
+        const ratio = rafDt / fallbackDt;
+        const clampedRatio = Number.isFinite(ratio) ? Math.min(4, Math.max(0.05, ratio)) : 1;
+        const blended = rafDeltaRatioRef.current * 0.9 + clampedRatio * 0.1;
+        rafDeltaRatioRef.current = blended;
+        if (blended < 0.85 || blended > 1.35) {
+          physicsDt = fallbackDt;
+        }
       }
-      const fscale = Math.min(2, Math.max(0.5, dt / 16.6667));
-      elapsedMs += dt;
+
+      if (!Number.isFinite(physicsDt) || physicsDt <= 0) {
+        physicsDt = fallbackDt > 0 ? fallbackDt : 16.6667;
+      }
+
+      const timelineDt = fallbackDt > 0 ? fallbackDt : physicsDt;
+      const fscale = Math.min(2, Math.max(0.5, physicsDt / 16.6667));
+      elapsedMs += timelineDt;
 
       const w = canvas.width / DPR, h = canvas.height / DPR;
 
@@ -847,7 +858,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             markGatherStart(!introSettled && idleState === "inactive");
           }
         } else if (phase === "exit") {
-          exitElapsedMs += dt;
+          exitElapsedMs += timelineDt;
           wasMorph = false;
         } else {
           wasMorph = false;
@@ -874,7 +885,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
               else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
             } else if (p.x > w - wall) { p.x = w - wall; p.vx = -p.vx * 0.7; }
           } else if (phase === "morph") {
-            morphElapsedMs += dt;
+            morphElapsedMs += timelineDt;
 
             let pushX = 0, pushY = 0;
             const dxm = p.x - smouse.x, dym = p.y - smouse.y;
@@ -931,7 +942,7 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
             const kNow = baseK + easeInOut(tLocal) * gainK;
 
             const dx = targetX - p.x, dy = targetY - p.y;
-            const tt = 1 - Math.pow(1 - kNow, Math.max(1, dt / 16.67));
+            const tt = 1 - Math.pow(1 - kNow, Math.max(1, physicsDt / 16.67));
             p.x += dx * tt; p.y += dy * tt;
 
             if (Math.abs(dx) < 0.05 && Math.abs(dy) < 0.05) { p.x = targetX; p.y = targetY; }
@@ -966,17 +977,17 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
           }
 
           if (idleState === "waiting") {
-            idleHoldElapsed += dt;
+            idleHoldElapsed += timelineDt;
             if (idleHoldElapsed >= idleHold) {
               startIdleScatter();
             }
           } else if (idleState === "gust") {
-            idleScatterElapsed += dt;
+            idleScatterElapsed += timelineDt;
             if (idleScatterElapsed >= idleScatter) {
               scheduleIdleGather();
             }
           } else if (idleState === "awaitGather") {
-            idleGatherDelayLeft -= dt;
+            idleGatherDelayLeft -= timelineDt;
             if (idleGatherDelayLeft <= 0) {
               beginIdleGather();
             }
