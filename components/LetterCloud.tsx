@@ -54,13 +54,13 @@ const CONFIG = {
 
   // 待机循环
   idleWords: ["Lighthouse", "Halo", "Hi"],
-  idleHoldMs: 2800,
+  idleHoldMs: 4200,
   idleScatterMs: 1400,
   idleGatherDelayMs: 520,
-  idleGustStrength: 4.6,
+  idleGustStrength: 4.8,
   idleGustJitter: 1.6,
-  idleAmbientDrift: 0.16,
-  idleGatherTransitionMs: 3800
+  idleAmbientDrift: 0.24,
+  idleGatherTransitionMs: 2600
 };
 
 function usePrefersReducedMotion() {
