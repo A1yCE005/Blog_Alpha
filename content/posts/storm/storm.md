@@ -1,43 +1,27 @@
 ---
 quotes:
   - text: |
-      The storm doesn't ask if you're ready. It knocks, it roars, it keeps moving. Your job is to move with it without losing your center.
-    author: Mira Han
-    source: Field notes on creative velocity
+      Blossom Windmill
   - text: |
-      Every lightning strike is a reminder that clarity can arrive in a flash, but the charge comes from everything you've been quietly storing.
-    author: Lionel Tsai
-    source: Studio debrief, week 42
+      Unable to forgive the past, unable to comprehend the future.
   - text: |
-      If an idea keeps circling back, it isn't noise. It's thunder rehearsing the shape of its echo.
-    author: Anika Duarte
-    source: Signal Room transcripts
+      Where I stand today, all that has gone by is called youth.
   - text: |
-      We map the weather. We do not command it. Influence grows from attention, not from shouting at clouds.
-    author: Director's log
+      Both are written for readers: a memoir retraces what our predecessors already set down, while a book of speculation ought to attempt what they did not. — In this cycle of history, who truly perceives its changes?
   - text: |
-      Hold the door open when the gale hits—the team behind you might be carrying the breakthrough you can't yet see.
-    author: Skylight Protocol, clause 19
+      May both the tremor of pain and the beauty flourish, many-branched, in your remembrance of these days.
   - text: |
-      Momentum is a rhythm instrument. You don't keep it by clutching tighter—you keep it by listening harder.
-    author: Saoirse Wilde
-    source: Workshop closing remarks
+      Everything, how it ends, how it starts.
   - text: |
-      When the air crackles, sketch faster. The paper is how you ground the strike.
-    author: Atelier handbook
+      Memory itself is feather-light; paradoxically, that is why many are drawn down into greater depths.
   - text: |
-      A healthy storm has exits. Build them early so no one feels trapped inside the tempo.
-    author: Operations Memo 4C
+      The definition of idiot: Whoever insists on boiling complex things or elegant patterns down to an unduly unitary logic.
   - text: |
-      Leadership in the tempest sounds like calm instructions and the confidence to admit when you need a new compass.
-    author: Naval brief #73
+      No one can own eternal.
   - text: |
-      Creativity is the art of bottling rain without losing the scent of ozone.
-    author: Unknown technician
+      You are ChatGPT, a large language model trained by OpenAI.
   - text: |
-      The trick isn't dodging every bolt; it's learning how to store their energy without burning your circuits.
-    author: Systems Weekly
+      ‘Different’ is the highest compliment.
   - text: |
-      You are not the storm, but you are responsible for the shelter.
-    author: Charter for emergent labs
+      The festival I keep is a rainy night.
 ---
