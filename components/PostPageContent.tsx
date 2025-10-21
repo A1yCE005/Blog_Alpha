@@ -5,8 +5,6 @@ import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
@@ -53,6 +51,13 @@ const KATEX_MATHML_TAGS = [
 
 const SAFE_TOKEN = /^[a-zA-Z0-9_-]+$/;
 const SAFE_STYLE = /^[-:;,%0-9a-zA-Z. ()]*$/;
+
+const MATH_EXPRESSION_REGEX = /\$\$[\s\S]+?\$\$|\$[^$]+\$|\\\([^)]+\\\)|\\\[[^\]]+\\\]/;
+
+type MathPlugins = {
+  remarkMath: any;
+  rehypeKatex: any;
+};
 
 const markdownSanitizeSchema = {
   ...defaultSchema,
@@ -228,6 +233,71 @@ export function PostPageContent({ post, backHref = "/?view=blog" }: PostPageCont
   const resetKey = `post:${post.slug}`;
   const { isTransitioning, handleLinkClick } = usePageTransition(resetKey);
   const isInteractive = !isTransitioning;
+  const hasMath = React.useMemo(() => MATH_EXPRESSION_REGEX.test(post.content), [post.content]);
+  const [mathPlugins, setMathPlugins] = React.useState<MathPlugins | null>(null);
+
+  React.useEffect(() => {
+    let isMounted = true;
+
+    if (!hasMath) {
+      setMathPlugins(null);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    if (mathPlugins) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const loadMathPlugins = async () => {
+      const [{ default: remarkMath }, { default: rehypeKatex }] = await Promise.all([
+        import("remark-math"),
+        import("rehype-katex"),
+      ]);
+
+      await import("katex/dist/katex.min.css");
+
+      if (isMounted) {
+        setMathPlugins({
+          remarkMath,
+          rehypeKatex,
+        });
+      }
+    };
+
+    void loadMathPlugins();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [hasMath, mathPlugins]);
+
+  const remarkPlugins = React.useMemo(() => {
+    const plugins: any[] = [remarkGfm];
+
+    if (hasMath && mathPlugins) {
+      plugins.push(mathPlugins.remarkMath);
+    }
+
+    return plugins;
+  }, [hasMath, mathPlugins]);
+
+  const rehypePlugins = React.useMemo(() => {
+    const plugins: any[] = [
+      rehypeRaw,
+      rehypeHighlight,
+      [rehypeSanitize, markdownSanitizeSchema],
+    ];
+
+    if (hasMath && mathPlugins) {
+      plugins.splice(1, 0, mathPlugins.rehypeKatex);
+    }
+
+    return plugins;
+  }, [hasMath, mathPlugins]);
 
   return (
     <>
@@ -276,13 +346,8 @@ export function PostPageContent({ post, backHref = "/?view=blog" }: PostPageCont
           <article className="mt-12 flex flex-col gap-6 text-base text-zinc-200">
             <ReactMarkdown
               components={markdownComponents}
-              remarkPlugins={[remarkGfm, remarkMath]}
-              rehypePlugins={[
-                rehypeRaw,
-                rehypeKatex,
-                rehypeHighlight,
-                [rehypeSanitize, markdownSanitizeSchema],
-              ]}
+              remarkPlugins={remarkPlugins}
+              rehypePlugins={rehypePlugins}
             >
               {post.content}
             </ReactMarkdown>
