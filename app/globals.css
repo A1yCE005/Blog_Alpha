@@ -131,6 +131,16 @@ a { text-decoration: none; }
   opacity: 1;
 }
 
+.post-page-shell[data-transition-state="transitioning"] {
+  pointer-events: none;
+  opacity: 0;
+}
+
+.post-page-shell[data-transition-state="idle"] {
+  pointer-events: auto;
+  opacity: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page-fade-in {
     animation: none;
