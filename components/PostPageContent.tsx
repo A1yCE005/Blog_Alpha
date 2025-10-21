@@ -1,18 +1,15 @@
-"use client";
-
 import React from "react";
-import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 
+import { PostPageTransitionShell } from "./PostPageTransitionShell";
 import type { PostContent } from "@/lib/posts";
-import { usePageTransition } from "@/hooks/usePageTransition";
 
 const KATEX_MATHML_TAGS = [
   "annotation",
@@ -131,9 +128,7 @@ const markdownComponents: Components = {
   h3: ({ children }) => (
     <h3 className="mt-8 text-2xl font-semibold tracking-tight text-zinc-100">{children}</h3>
   ),
-  p: ({ children }) => (
-    <p className="leading-relaxed text-zinc-300">{children}</p>
-  ),
+  p: ({ children }) => <p className="leading-relaxed text-zinc-300">{children}</p>,
   a: ({ children, href }) => (
     <a
       href={href}
@@ -226,69 +221,43 @@ type PostPageContentProps = {
 
 export function PostPageContent({ post, backHref = "/?view=blog" }: PostPageContentProps) {
   const resetKey = `post:${post.slug}`;
-  const { isTransitioning, handleLinkClick } = usePageTransition(resetKey);
-  const isInteractive = !isTransitioning;
 
   return (
-    <>
-      <div
-        aria-hidden
-        className={`page-transition-overlay ${isTransitioning ? "page-transition-overlay-active" : ""}`}
-      />
-      <div
-        className={`relative min-h-screen bg-black page-fade-in transition-opacity duration-300 ease-out ${
-          isTransitioning ? "pointer-events-none opacity-0" : "opacity-100"
-        }`}
-      >
-        <div className="mx-auto w-full max-w-3xl px-6 py-20 sm:px-10">
-          <div className="mb-10">
-            <Link
-              href={backHref}
-              onClick={(event) => handleLinkClick(event, backHref)}
-              className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-500 transition-colors duration-200 hover:text-violet-200"
-              tabIndex={isInteractive ? undefined : -1}
-            >
-              <span aria-hidden>←</span> Back to the cloud
-            </Link>
+    <PostPageTransitionShell backHref={backHref} resetKey={resetKey}>
+      <div className="flex flex-col gap-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.35em] text-violet-300/80">
+          {dateFormatter.format(new Date(post.date))}
+        </p>
+        <h1 className="text-4xl font-semibold tracking-tight text-zinc-50 sm:text-5xl">{post.title}</h1>
+        <p className="text-sm uppercase tracking-[0.25em] text-zinc-500">{post.readingTime}</p>
+        {post.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.2em] text-zinc-500">
+            {post.tags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full border border-white/10 px-3 py-1 text-[0.7rem] font-semibold text-zinc-300"
+              >
+                {tag}
+              </span>
+            ))}
           </div>
-          <div className="flex flex-col gap-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-violet-300/80">
-              {dateFormatter.format(new Date(post.date))}
-            </p>
-            <h1 className="text-4xl font-semibold tracking-tight text-zinc-50 sm:text-5xl">
-              {post.title}
-            </h1>
-            <p className="text-sm uppercase tracking-[0.25em] text-zinc-500">{post.readingTime}</p>
-            {post.tags.length > 0 && (
-              <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.2em] text-zinc-500">
-                {post.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full border border-white/10 px-3 py-1 text-[0.7rem] font-semibold text-zinc-300"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <article className="mt-12 flex flex-col gap-6 text-base text-zinc-200">
-            <ReactMarkdown
-              components={markdownComponents}
-              remarkPlugins={[remarkGfm, remarkMath]}
-              rehypePlugins={[
-                rehypeRaw,
-                rehypeKatex,
-                rehypeHighlight,
-                [rehypeSanitize, markdownSanitizeSchema],
-              ]}
-            >
-              {post.content}
-            </ReactMarkdown>
-          </article>
-        </div>
+        )}
       </div>
-    </>
+
+      <article className="mt-12 flex flex-col gap-6 text-base text-zinc-200">
+        <ReactMarkdown
+          components={markdownComponents}
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[
+            rehypeRaw,
+            rehypeKatex,
+            rehypeHighlight,
+            [rehypeSanitize, markdownSanitizeSchema],
+          ]}
+        >
+          {post.content}
+        </ReactMarkdown>
+      </article>
+    </PostPageTransitionShell>
   );
 }
