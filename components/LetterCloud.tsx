@@ -1,9 +1,11 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { BlogMain } from "@/components/BlogMain";
+import { PostListStatic } from "@/components/PostListStatic";
 import type { PostSummary } from "@/lib/posts";
 
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
@@ -66,6 +68,18 @@ const CONFIG = {
   idleScatterVelocityApproach: 0.36,
   idleGatherTransitionMs: 2600
 };
+
+const MOBILE_WIDTH_BREAKPOINT = 768;
+
+function detectIsMobile() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const coarseMq = window.matchMedia("(hover: none) and (pointer: coarse)");
+  const coarse = typeof coarseMq.matches === "boolean" ? coarseMq.matches : false;
+  return coarse || window.innerWidth <= MOBILE_WIDTH_BREAKPOINT;
+}
 
 function usePrefersReducedMotion() {
   const [prefers, setPrefers] = React.useState(false);
@@ -1135,7 +1149,10 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   const [morphK, setMorphK] = React.useState<number>(0.14);
   const [dockMaxOffset, setDockMaxOffset] = React.useState<number>(10);
   const [glyphSizePx, setGlyphSizePx] = React.useState<number | undefined>(undefined);
-  const [isMobile, setIsMobile] = React.useState(false);
+  const [isMobile, setIsMobile] = React.useState(detectIsMobile);
+
+  const prefersReduced = usePrefersReducedMotion();
+  const heroDisabled = prefersReduced || isMobile;
 
   const particlesRef = React.useRef<WordParticlesHandle | null>(null);
   const [hasEnteredBlog, setHasEnteredBlog] = React.useState(initialBlogView);
@@ -1146,22 +1163,23 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   React.useEffect(() => {
     if (typeof window === "undefined") return;
     const coarseMq = window.matchMedia("(hover: none) and (pointer: coarse)");
-    const compute = () => {
-      const coarse = typeof coarseMq.matches === "boolean" ? coarseMq.matches : false;
-      return coarse || window.innerWidth <= 768;
-    };
-    const update = () => setIsMobile(compute());
+    const update = () => setIsMobile(detectIsMobile());
     update();
+
     window.addEventListener("resize", update);
     const handleChange = () => update();
-    coarseMq.addEventListener?.("change", handleChange);
-    if (!coarseMq.addEventListener && coarseMq.addListener) {
+
+    if (coarseMq.addEventListener) {
+      coarseMq.addEventListener("change", handleChange);
+    } else if (coarseMq.addListener) {
       coarseMq.addListener(handleChange);
     }
+
     return () => {
       window.removeEventListener("resize", update);
-      coarseMq.removeEventListener?.("change", handleChange);
-      if (!coarseMq.removeEventListener && coarseMq.removeListener) {
+      if (coarseMq.removeEventListener) {
+        coarseMq.removeEventListener("change", handleChange);
+      } else if (coarseMq.removeListener) {
         coarseMq.removeListener(handleChange);
       }
     };
@@ -1178,6 +1196,24 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
       setGlyphSizePx(undefined);
     }
   }, [isMobile]);
+
+  React.useEffect(() => {
+    if (!heroDisabled) {
+      return;
+    }
+
+    if (!hasEnteredBlog) {
+      setHasEnteredBlog(true);
+    }
+
+    if (!blogVisible) {
+      setBlogVisible(true);
+    }
+
+    if (!heroRetired) {
+      setHeroRetired(true);
+    }
+  }, [blogVisible, hasEnteredBlog, heroDisabled, heroRetired]);
 
   const router = useRouter();
 
@@ -1213,15 +1249,15 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   }, []);
 
   const handleEnterBlog = React.useCallback(() => {
-    if (hasEnteredBlog) return;
+    if (hasEnteredBlog || heroDisabled) return;
     router.replace("?view=blog", { scroll: false });
     setHasEnteredBlog(true);
     particlesRef.current?.triggerExit();
-  }, [hasEnteredBlog, router]);
+  }, [hasEnteredBlog, heroDisabled, router]);
 
   return (
     <div className="min-h-screen bg-black text-zinc-100">
-      {!heroRetired && (
+      {!heroDisabled && !heroRetired && (
         <section
           className={`relative h-[100svh] w-full overflow-hidden transition-all duration-700 ease-out ${
             hasEnteredBlog ? "scale-[0.98] opacity-40 blur-[1.5px]" : ""
@@ -1266,7 +1302,46 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
           )}
         </section>
       )}
-      <BlogMain visible={blogVisible} posts={posts} />
+
+      {heroDisabled && (
+        <section className="mx-auto w-full max-w-3xl px-6 pb-12 pt-24 sm:px-10">
+          <div className="flex flex-col gap-6 text-left">
+            <p className="text-sm font-medium uppercase tracking-[0.3em] text-violet-300/80">The Journal</p>
+            <h1 className="text-3xl font-semibold text-zinc-50 sm:text-4xl">Lighthouse</h1>
+            <p className="max-w-2xl text-sm text-zinc-400 sm:text-base">
+              Animations are paused on this device to conserve battery and keep scrolling responsive. Explore the latest essays below or jump straight into the archive.
+            </p>
+            <nav className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.3em] text-zinc-400">
+              <Link
+                href="/archive"
+                className="inline-flex items-center rounded-full border border-white/10 px-4 py-2 font-semibold text-zinc-200 transition-colors duration-200 hover:border-white/40 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/60"
+              >
+                Archive
+              </Link>
+              <Link
+                href="/storm"
+                className="inline-flex items-center rounded-full border border-white/10 px-4 py-2 font-semibold text-zinc-200 transition-colors duration-200 hover:border-white/40 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/60"
+              >
+                Storm
+              </Link>
+              <Link
+                href="/about"
+                className="inline-flex items-center rounded-full border border-white/10 px-4 py-2 font-semibold text-zinc-200 transition-colors duration-200 hover:border-white/40 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/60"
+              >
+                About
+              </Link>
+            </nav>
+          </div>
+        </section>
+      )}
+
+      {heroDisabled ? (
+        <section className="mx-auto w-full max-w-4xl px-6 pb-20 sm:px-10">
+          <PostListStatic posts={posts} />
+        </section>
+      ) : (
+        <BlogMain visible={blogVisible} posts={posts} />
+      )}
     </div>
   );
 }

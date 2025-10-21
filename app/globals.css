@@ -131,6 +131,15 @@ a { text-decoration: none; }
   opacity: 1;
 }
 
+.post-transition-container {
+  transition: opacity 300ms ease-out;
+}
+
+.post-transition-container[data-transitioning="true"] {
+  pointer-events: none;
+  opacity: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page-fade-in {
     animation: none;
