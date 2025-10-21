@@ -51,6 +51,21 @@ function truncateExcerpt(text: string, limit = 320) {
   return `${base}…`;
 }
 
+function stripMarkdownFormatting(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, (match) => match.replace(/```/g, ""))
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/~~(.*?)~~/g, "$1")
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/(\*|_)(.*?)\1/g, "$2")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^>\s?/gm, "")
+    .replace(/^#+\s+/gm, "")
+    .replace(/^[\t >]*[-+*]\s+/gm, "")
+    .replace(/\\([\\`*_{}\[\]()#+\-.!])/g, "$1");
+}
+
 async function parsePostFile(filePath: string, slug: string): Promise<PostContent> {
   const raw = await fs.readFile(filePath, "utf8");
   const { data, content } = matter(raw);
@@ -64,7 +79,8 @@ async function parsePostFile(filePath: string, slug: string): Promise<PostConten
       ? data.excerpt
       : content.split(/\n\s*\n/)[0] ?? "";
 
-  const cleanedExcerpt = excerptSource.replace(/\s+/g, " ").trim();
+  const plainExcerpt = stripMarkdownFormatting(excerptSource);
+  const cleanedExcerpt = plainExcerpt.replace(/\s+/g, " ").trim();
   const excerpt = truncateExcerpt(cleanedExcerpt);
 
   const readingTime =
