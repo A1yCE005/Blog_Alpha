@@ -228,12 +228,24 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
   }, []);
 
   const scrollContainerTo = useCallback(
-    (container: HTMLDivElement, target: number, animate: boolean) => {
+    (
+      container: HTMLDivElement,
+      target: number,
+      options?: {
+        animate?: boolean;
+        onStart?: () => void;
+        onComplete?: () => void;
+      }
+    ) => {
       stopScrollAnimation();
 
       if (!Number.isFinite(target)) {
         return;
       }
+
+      const animate = options?.animate ?? true;
+      const onStart = options?.onStart;
+      const onComplete = options?.onComplete;
 
       const currentTop = container.scrollTop;
       const distance = target - currentTop;
@@ -243,10 +255,12 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         container.scrollTop = target;
         requestAnimationFrame(() => {
           suppressScrollHandlingRef.current = false;
+          onComplete?.();
         });
         return;
       }
 
+      onStart?.();
       scrollAnimatingRef.current = true;
       suppressScrollHandlingRef.current = true;
       const start = performance.now();
@@ -264,6 +278,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
           container.scrollTop = target;
           requestAnimationFrame(() => {
             suppressScrollHandlingRef.current = false;
+            onComplete?.();
           });
         }
       };
@@ -320,14 +335,37 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
 
       const node = itemRefs.current.get(nearestId);
 
-      if (node) {
-        const targetTop = resolveTargetScrollTop(node, container);
-        scrollContainerTo(container, targetTop, animate);
+      const finalizeHighlight = () => {
+        highlightedIdRef.current = nearestId;
+        setHighlightedId(nearestId);
+        setDepthActive(true);
+      };
+
+      if (!node) {
+        finalizeHighlight();
+        return;
       }
 
-      highlightedIdRef.current = nearestId;
-      setHighlightedId(nearestId);
-      setDepthActive(true);
+      const targetTop = resolveTargetScrollTop(node, container);
+      const distance = targetTop - container.scrollTop;
+      const willAnimate = animate && Math.abs(distance) > 0.5;
+
+      if (willAnimate) {
+        scrollContainerTo(container, targetTop, {
+          animate: true,
+          onStart: () => {
+            highlightedIdRef.current = null;
+            setHighlightedId(null);
+            setDepthActive(false);
+          },
+          onComplete: finalizeHighlight,
+        });
+      } else {
+        scrollContainerTo(container, targetTop, {
+          animate: false,
+        });
+        finalizeHighlight();
+      }
     },
     [resolveTargetScrollTop, scrollContainerTo]
   );
@@ -555,7 +593,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
       }
 
       const targetTop = resolveTargetScrollTop(node, container);
-      scrollContainerTo(container, targetTop, false);
+      scrollContainerTo(container, targetTop, { animate: false });
 
       requestAnimationFrame(() => {
         applyHighlightToCenter({ animate: false });
@@ -712,7 +750,8 @@ function StormQuoteCard({
   const baseWrapperClasses =
     "max-w-3xl text-center font-sans text-[1.5rem] font-bold leading-[1.7] sm:text-[1.9rem] md:text-[2.15rem]";
 
-  const textSpanClasses = "storm-quote-body inline-block whitespace-pre-line";
+  const textSpanClasses =
+    "storm-quote-body inline-block whitespace-pre-line transition-[filter,opacity,color] duration-400 ease-out";
 
   const highlightedClasses = highlighted
     ? "text-violet-300"
