@@ -233,12 +233,14 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
       scrollAnimatingRef.current = true;
       suppressScrollHandlingRef.current = true;
       const start = performance.now();
-      const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+      const easeInOutQuint = (t: number) =>
+        t < 0.5 ? 16 * Math.pow(t, 5) : 1 - Math.pow(-2 * t + 2, 5) / 2;
 
       const step = (now: number) => {
         const elapsed = now - start;
         const progress = Math.min(Math.max(elapsed / SCROLL_ANIMATION_DURATION, 0), 1);
-        const next = currentTop + distance * easeOutCubic(progress);
+        const eased = easeInOutQuint(progress);
+        const next = currentTop + distance * eased;
         container.scrollTop = next;
 
         if (progress < 1) {
