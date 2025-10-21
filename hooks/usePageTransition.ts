@@ -5,7 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
-const TRANSITION_DURATION_MS = 400;
+const MIN_VISIBLE_DURATION_MS = 220;
+const FALLBACK_RESET_MS = 1500;
 
 type HandleLinkClick = (
   event: React.MouseEvent<HTMLAnchorElement>,
@@ -25,6 +26,7 @@ export function usePageTransition(resetKey: string): UsePageTransitionResult {
   const [isTransitioning, setIsTransitioning] = React.useState(false);
   const transitionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingNavigationRef = React.useRef(false);
+  const transitionStartRef = React.useRef<number | null>(null);
 
   React.useEffect(() => {
     return () => {
@@ -33,6 +35,7 @@ export function usePageTransition(resetKey: string): UsePageTransitionResult {
       }
 
       pendingNavigationRef.current = false;
+      transitionStartRef.current = null;
     };
   }, []);
 
@@ -41,13 +44,21 @@ export function usePageTransition(resetKey: string): UsePageTransitionResult {
       return;
     }
 
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const startedAt = transitionStartRef.current ?? now;
+    const elapsed = now - startedAt;
+    const remaining = Math.max(0, MIN_VISIBLE_DURATION_MS - elapsed);
+
     if (transitionTimeoutRef.current) {
       clearTimeout(transitionTimeoutRef.current);
-      transitionTimeoutRef.current = null;
     }
 
-    pendingNavigationRef.current = false;
-    setIsTransitioning(false);
+    transitionTimeoutRef.current = setTimeout(() => {
+      pendingNavigationRef.current = false;
+      transitionTimeoutRef.current = null;
+      transitionStartRef.current = null;
+      setIsTransitioning(false);
+    }, remaining);
   }, [pathname, resetKey]);
 
   const startTransition = React.useCallback(
@@ -62,11 +73,21 @@ export function usePageTransition(resetKey: string): UsePageTransitionResult {
       }
 
       pendingNavigationRef.current = true;
+      transitionStartRef.current = typeof performance !== "undefined" ? performance.now() : Date.now();
       setIsTransitioning(true);
+      if (typeof router.prefetch === "function") {
+        router.prefetch(href);
+      }
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
+      }
       transitionTimeoutRef.current = setTimeout(() => {
-        router.push(href);
+        pendingNavigationRef.current = false;
         transitionTimeoutRef.current = null;
-      }, TRANSITION_DURATION_MS);
+        transitionStartRef.current = null;
+        setIsTransitioning(false);
+      }, FALLBACK_RESET_MS);
+      router.push(href);
     },
     [isTransitioning, prefersReducedMotion, router]
   );
