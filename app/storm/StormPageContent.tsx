@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type TouchEvent as ReactTouchEvent,
   type UIEvent,
@@ -17,8 +18,9 @@ import type { StormQuote } from "@/lib/storm";
 const BATCH_SIZE = 12;
 const INITIAL_BATCHES = 6;
 const LOAD_THRESHOLD = 240;
-const SCROLL_IDLE_DELAY = 320;
+const SCROLL_IDLE_DELAY = 420;
 const SCROLL_ANIMATION_DURATION = 520;
+const POINTER_MOVEMENT_THRESHOLD_PX = 6;
 
 const scrollEase = (t: number) => {
   if (t <= 0) {
@@ -54,7 +56,7 @@ type StormPageContentProps = {
 };
 
 export function StormPageContent({ quotes }: StormPageContentProps) {
-  const { isTransitioning } = usePageTransition("storm");
+  const { isTransitioning, startTransition } = usePageTransition("storm");
   const isInteractive = !isTransitioning;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -75,12 +77,14 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
   const scrollAnimationFrameRef = useRef<number | null>(null);
   const scrollAnimatingRef = useRef(false);
   const scrollAnimationCompleteRef = useRef<(() => void) | null>(null);
+  const pointerOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const pointerHadMovementRef = useRef(false);
 
   const [items, setItems] = useState<StormItem[]>([]);
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [highlightedId, setHighlightedId] = useState<number | null>(null);
-  const [depthActive, setDepthActive] = useState(false);
+  const [depthActive, setDepthActive] = useState(() => quotes.length > 0);
 
   useEffect(() => {
     highlightedIdRef.current = highlightedId;
@@ -150,7 +154,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
       hasSeededRef.current = false;
     }
     setHighlightedId(null);
-    setDepthActive(false);
+    setDepthActive(pool.length > 0);
     highlightedIdRef.current = null;
     desiredHighlightIdRef.current = null;
     initialHighlightRef.current = false;
@@ -405,6 +409,8 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     stopScrollAnimation();
     pointerActiveRef.current = true;
     desiredHighlightIdRef.current = null;
+    pointerHadMovementRef.current = false;
+    pointerOriginRef.current = null;
 
     if (scrollIdleTimeoutRef.current !== null) {
       window.clearTimeout(scrollIdleTimeoutRef.current);
@@ -413,22 +419,54 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
 
   }, [stopScrollAnimation]);
 
-  const handlePointerDown = useCallback(() => {
-    beginPointerInteraction();
-  }, [beginPointerInteraction]);
+  const handlePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      pointerOriginRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+      beginPointerInteraction();
+    },
+    [beginPointerInteraction]
+  );
+
+  const handlePointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!pointerActiveRef.current || pointerHadMovementRef.current) {
+        return;
+      }
+
+      const origin = pointerOriginRef.current;
+      if (!origin) {
+        return;
+      }
+
+      const deltaX = event.clientX - origin.x;
+      const deltaY = event.clientY - origin.y;
+
+      if (Math.hypot(deltaX, deltaY) >= POINTER_MOVEMENT_THRESHOLD_PX) {
+        pointerHadMovementRef.current = true;
+      }
+    },
+    []
+  );
 
   const handlePointerUp = useCallback(() => {
     settlePointerInteraction();
+    pointerOriginRef.current = null;
   }, [settlePointerInteraction]);
 
   const handlePointerCancel = useCallback(() => {
+    pointerHadMovementRef.current = true;
     settlePointerInteraction();
+    pointerOriginRef.current = null;
   }, [settlePointerInteraction]);
 
   const handlePointerLeave = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       if (event.buttons === 0) {
         settlePointerInteraction();
+        pointerOriginRef.current = null;
       }
     },
     [settlePointerInteraction]
@@ -442,12 +480,17 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     [beginPointerInteraction]
   );
 
+  const handleTouchMove = useCallback(() => {
+    pointerHadMovementRef.current = true;
+  }, []);
+
   const handleTouchEnd = useCallback(
     (event: ReactTouchEvent<HTMLDivElement>) => {
       activeTouchCountRef.current = event.touches.length;
 
       if (event.touches.length === 0) {
         settlePointerInteraction();
+        pointerOriginRef.current = null;
       }
     },
     [settlePointerInteraction]
@@ -456,6 +499,8 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
   const handleTouchCancel = useCallback(
     (event: ReactTouchEvent<HTMLDivElement>) => {
       activeTouchCountRef.current = event.touches.length;
+      pointerHadMovementRef.current = true;
+      pointerOriginRef.current = null;
 
       if (event.touches.length === 0) {
         settlePointerInteraction();
@@ -625,6 +670,23 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     [pool.length, sample]
   );
 
+  const handlePageClick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      if (pointerHadMovementRef.current) {
+        pointerHadMovementRef.current = false;
+        return;
+      }
+
+      pointerHadMovementRef.current = false;
+      startTransition("/?view=blog");
+    },
+    [startTransition]
+  );
+
   return (
     <>
       <div
@@ -637,6 +699,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         className={`relative min-h-screen bg-black/80 backdrop-blur-2xl supports-[backdrop-filter:blur(0)]:backdrop-blur-3xl page-fade-in transition-opacity duration-300 ease-out ${
           isTransitioning ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
+        onClick={handlePageClick}
       >
         <div className="mx-auto flex h-screen w-full max-w-4xl flex-col px-6 sm:px-12">
           {pool.length === 0 ? (
@@ -652,16 +715,18 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
               ref={containerRef}
               onScroll={handleScroll}
               onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerCancel}
               onPointerLeave={handlePointerLeave}
               onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
               onTouchCancel={handleTouchCancel}
               className="storm-scroll-container relative flex h-full flex-col overflow-y-auto px-2 sm:px-4"
               tabIndex={isInteractive ? 0 : -1}
             >
-              <div className="flex flex-col items-center gap-16 py-16 sm:gap-24">
+              <div className="flex flex-col items-center gap-14 py-16 sm:gap-20">
                 {items.map((item) => (
                   <StormQuoteCard
                     key={item.id}
@@ -747,9 +812,9 @@ function StormQuoteCard({
   );
 
   const baseWrapperClasses =
-    "max-w-3xl text-center font-sans text-[1.5rem] font-bold leading-[1.7] sm:text-[1.9rem] md:text-[2.15rem]";
+    "max-w-3xl text-center font-sans text-[1.5rem] font-medium leading-[1.55] sm:text-[1.9rem] md:text-[2.15rem]";
 
-  const textSpanClasses = "storm-quote-body inline-block whitespace-pre-line";
+  const textSpanClasses = "storm-quote-body inline-block whitespace-pre-line select-none";
 
   const highlightedClasses = highlighted
     ? "text-violet-300"
@@ -758,7 +823,7 @@ function StormQuoteCard({
     : "text-zinc-100";
 
   return (
-    <article ref={setRefs} className="flex justify-center px-6 py-8 overflow-visible">
+    <article ref={setRefs} className="flex justify-center px-6 py-6 overflow-visible">
       <p className={baseWrapperClasses}>
         <span className={`${textSpanClasses} ${highlightedClasses}`}>{text}</span>
       </p>

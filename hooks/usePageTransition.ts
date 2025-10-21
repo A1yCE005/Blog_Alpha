@@ -15,6 +15,7 @@ type HandleLinkClick = (
 type UsePageTransitionResult = {
   isTransitioning: boolean;
   handleLinkClick: HandleLinkClick;
+  startTransition: (href: string) => void;
 };
 
 export function usePageTransition(resetKey: string): UsePageTransitionResult {
@@ -49,6 +50,27 @@ export function usePageTransition(resetKey: string): UsePageTransitionResult {
     setIsTransitioning(false);
   }, [pathname, resetKey]);
 
+  const startTransition = React.useCallback(
+    (href: string) => {
+      if (prefersReducedMotion) {
+        router.push(href);
+        return;
+      }
+
+      if (isTransitioning) {
+        return;
+      }
+
+      pendingNavigationRef.current = true;
+      setIsTransitioning(true);
+      transitionTimeoutRef.current = setTimeout(() => {
+        router.push(href);
+        transitionTimeoutRef.current = null;
+      }, TRANSITION_DURATION_MS);
+    },
+    [isTransitioning, prefersReducedMotion, router]
+  );
+
   const handleLinkClick = React.useCallback<HandleLinkClick>(
     (event, href) => {
       if (prefersReducedMotion) {
@@ -72,21 +94,17 @@ export function usePageTransition(resetKey: string): UsePageTransitionResult {
       }
 
       event.preventDefault();
-      pendingNavigationRef.current = true;
-      setIsTransitioning(true);
-      transitionTimeoutRef.current = setTimeout(() => {
-        router.push(href);
-        transitionTimeoutRef.current = null;
-      }, TRANSITION_DURATION_MS);
+      startTransition(href);
     },
-    [prefersReducedMotion, isTransitioning, router]
+    [isTransitioning, prefersReducedMotion, startTransition]
   );
 
   return React.useMemo(
     () => ({
       isTransitioning,
       handleLinkClick,
+      startTransition,
     }),
-    [handleLinkClick, isTransitioning]
+    [handleLinkClick, isTransitioning, startTransition]
   );
 }
