@@ -53,6 +53,8 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
   const itemRefs = useRef(new Map<number, HTMLDivElement | null>());
   const highlightedIdRef = useRef<number | null>(null);
   const activeTouchCountRef = useRef(0);
+  const scrollAnimationFrameRef = useRef<number | null>(null);
+  const scrollAnimationCancelRef = useRef<(() => void) | null>(null);
 
   const [items, setItems] = useState<StormItem[]>([]);
   const [ready, setReady] = useState(false);
@@ -95,6 +97,18 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     itemRefs.current.clear();
   }, [poolSignature, pool.length]);
 
+  const cancelScrollAnimation = useCallback(() => {
+    if (scrollAnimationFrameRef.current !== null) {
+      cancelAnimationFrame(scrollAnimationFrameRef.current);
+      scrollAnimationFrameRef.current = null;
+    }
+
+    if (scrollAnimationCancelRef.current) {
+      scrollAnimationCancelRef.current();
+      scrollAnimationCancelRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     return () => {
       if (loadTimeoutRef.current !== null) {
@@ -105,9 +119,10 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         window.clearTimeout(scrollIdleTimeoutRef.current);
         scrollIdleTimeoutRef.current = null;
       }
+      cancelScrollAnimation();
       suppressScrollHandlingRef.current = false;
     };
-  }, []);
+  }, [cancelScrollAnimation]);
 
   const attach = useCallback((entries: StormSample[]): StormItem[] => {
     return entries.map((entry) => ({
@@ -184,6 +199,60 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
     return Math.min(Math.max(target, 0), maxScroll);
   }, []);
 
+  const animateScrollTop = useCallback(
+    (targetTop: number, onComplete: () => void) => {
+      cancelScrollAnimation();
+
+      const container = containerRef.current;
+      if (!container) {
+        onComplete();
+        return;
+      }
+
+      const startTop = container.scrollTop;
+      const delta = targetTop - startTop;
+
+      if (Math.abs(delta) < 0.5) {
+        container.scrollTop = targetTop;
+        onComplete();
+        return;
+      }
+
+      const duration = 520;
+      const start = performance.now();
+
+      suppressScrollHandlingRef.current = true;
+
+      const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+
+      scrollAnimationCancelRef.current = () => {
+        suppressScrollHandlingRef.current = false;
+      };
+
+      const step = (time: number) => {
+        const elapsed = time - start;
+        const progress = Math.min(1, elapsed / duration);
+        const eased = ease(progress);
+        const nextTop = startTop + delta * eased;
+
+        container.scrollTop = nextTop;
+
+        if (progress < 1) {
+          scrollAnimationFrameRef.current = requestAnimationFrame(step);
+          return;
+        }
+
+        scrollAnimationFrameRef.current = null;
+        suppressScrollHandlingRef.current = false;
+        scrollAnimationCancelRef.current = null;
+        onComplete();
+      };
+
+      scrollAnimationFrameRef.current = requestAnimationFrame(step);
+    },
+    [cancelScrollAnimation]
+  );
+
   const applyHighlightToCenter = useCallback(() => {
     const container = containerRef.current;
     if (!container) {
@@ -228,21 +297,23 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
 
     const node = itemRefs.current.get(nearestId);
 
+    const completeHighlight = () => {
+      highlightedIdRef.current = nearestId;
+      setHighlightedId(nearestId);
+      setDepthActive(true);
+    };
+
     if (node) {
       const targetTop = resolveTargetScrollTop(node, container);
       if (Math.abs(container.scrollTop - targetTop) > 0.5) {
-        suppressScrollHandlingRef.current = true;
-        container.scrollTop = targetTop;
-        requestAnimationFrame(() => {
-          suppressScrollHandlingRef.current = false;
-        });
+        animateScrollTop(targetTop, completeHighlight);
+        return;
       }
+      container.scrollTop = targetTop;
     }
 
-    highlightedIdRef.current = nearestId;
-    setHighlightedId(nearestId);
-    setDepthActive(true);
-  }, [resolveTargetScrollTop]);
+    completeHighlight();
+  }, [animateScrollTop, resolveTargetScrollTop]);
 
   const scheduleIdleHighlight = useCallback(() => {
     if (scrollIdleTimeoutRef.current !== null) {
@@ -282,12 +353,14 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
   const beginPointerInteraction = useCallback(() => {
     pointerActiveRef.current = true;
 
+    cancelScrollAnimation();
+
     if (scrollIdleTimeoutRef.current !== null) {
       window.clearTimeout(scrollIdleTimeoutRef.current);
       scrollIdleTimeoutRef.current = null;
     }
 
-  }, []);
+  }, [cancelScrollAnimation]);
 
   const handlePointerDown = useCallback(() => {
     beginPointerInteraction();
