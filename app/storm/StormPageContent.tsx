@@ -80,7 +80,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [highlightedId, setHighlightedId] = useState<number | null>(null);
-  const [depthActive, setDepthActive] = useState(false);
+  const [depthActive, setDepthActive] = useState(() => quotes.length > 0);
 
   useEffect(() => {
     highlightedIdRef.current = highlightedId;
@@ -150,7 +150,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
       hasSeededRef.current = false;
     }
     setHighlightedId(null);
-    setDepthActive(false);
+    setDepthActive(pool.length > 0);
     highlightedIdRef.current = null;
     desiredHighlightIdRef.current = null;
     initialHighlightRef.current = false;
