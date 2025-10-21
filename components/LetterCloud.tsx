@@ -1136,6 +1136,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   const [dockMaxOffset, setDockMaxOffset] = React.useState<number>(10);
   const [glyphSizePx, setGlyphSizePx] = React.useState<number | undefined>(undefined);
   const [isMobile, setIsMobile] = React.useState(false);
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const particlesRef = React.useRef<WordParticlesHandle | null>(null);
   const [hasEnteredBlog, setHasEnteredBlog] = React.useState(initialBlogView);
@@ -1179,6 +1180,17 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     }
   }, [isMobile]);
 
+  const disableHero = prefersReducedMotion || isMobile;
+
+  React.useEffect(() => {
+    if (!disableHero) {
+      return;
+    }
+    setHasEnteredBlog(true);
+    setBlogVisible(true);
+    setHeroRetired(true);
+  }, [disableHero]);
+
   const router = useRouter();
 
   // 进入博客过渡控制
@@ -1219,9 +1231,11 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
     particlesRef.current?.triggerExit();
   }, [hasEnteredBlog, router]);
 
+  const showHero = !disableHero && !heroRetired;
+
   return (
     <div className="min-h-screen bg-black text-zinc-100">
-      {!heroRetired && (
+      {showHero && (
         <section
           className={`relative h-[100svh] w-full overflow-hidden transition-all duration-700 ease-out ${
             hasEnteredBlog ? "scale-[0.98] opacity-40 blur-[1.5px]" : ""

@@ -3,6 +3,8 @@ import path from "node:path";
 
 import matter from "gray-matter";
 
+import { compileMarkdown } from "./markdown";
+
 export type PostSummary = {
   slug: string;
   title: string;
@@ -13,7 +15,8 @@ export type PostSummary = {
 };
 
 export type PostContent = PostSummary & {
-  content: string;
+  markdown: string;
+  compiledHtml: string;
 };
 
 const POSTS_DIR = path.join(process.cwd(), "content", "posts");
@@ -88,6 +91,8 @@ async function parsePostFile(filePath: string, slug: string): Promise<PostConten
       ? data.readingTime
       : formatReadingTime(content);
 
+  const compiledHtml = await compileMarkdown(content);
+
   return {
     slug,
     title,
@@ -95,7 +100,8 @@ async function parsePostFile(filePath: string, slug: string): Promise<PostConten
     date,
     readingTime,
     tags,
-    content,
+    markdown: content,
+    compiledHtml,
   } satisfies PostContent;
 }
 
@@ -121,7 +127,7 @@ export async function getAllPosts(): Promise<PostSummary[]> {
 
   return posts
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .map(({ content, ...summary }) => summary);
+    .map(({ markdown: _markdown, compiledHtml: _compiled, ...summary }) => summary);
 }
 
 export async function getPostBySlug(slug: string): Promise<PostContent | null> {
