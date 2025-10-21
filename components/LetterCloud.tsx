@@ -1129,6 +1129,7 @@ type FullscreenHomeProps = {
 };
 
 export default function FullscreenHome({ posts, initialBlogView = false }: FullscreenHomeProps) {
+  const prefersReducedGlobal = usePrefersReducedMotion();
   const [word, setWord] = React.useState(CONFIG.word);
   const [gap, setGap] = React.useState(CONFIG.sampleGap);
   const [letterSpacing, setLetterSpacing] = React.useState(CONFIG.letterSpacing);
@@ -1142,6 +1143,8 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   const [blogVisible, setBlogVisible] = React.useState(initialBlogView);
   const [heroRetired, setHeroRetired] = React.useState(initialBlogView);
   const initialBlogRef = React.useRef(initialBlogView);
+
+  const animationEnabled = !prefersReducedGlobal && !isMobile;
 
   React.useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1213,15 +1216,25 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   }, []);
 
   const handleEnterBlog = React.useCallback(() => {
-    if (hasEnteredBlog) return;
+    if (hasEnteredBlog || !animationEnabled) return;
     router.replace("?view=blog", { scroll: false });
     setHasEnteredBlog(true);
     particlesRef.current?.triggerExit();
-  }, [hasEnteredBlog, router]);
+  }, [animationEnabled, hasEnteredBlog, router]);
+
+  React.useEffect(() => {
+    if (!animationEnabled) {
+      setHasEnteredBlog(true);
+      setBlogVisible(true);
+      setHeroRetired(true);
+    }
+  }, [animationEnabled]);
+
+  const showHero = animationEnabled && !heroRetired;
 
   return (
     <div className="min-h-screen bg-black text-zinc-100">
-      {!heroRetired && (
+      {showHero && (
         <section
           className={`relative h-[100svh] w-full overflow-hidden transition-all duration-700 ease-out ${
             hasEnteredBlog ? "scale-[0.98] opacity-40 blur-[1.5px]" : ""
@@ -1266,7 +1279,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
           )}
         </section>
       )}
-      <BlogMain visible={blogVisible} posts={posts} />
+      <BlogMain visible={animationEnabled ? blogVisible : true} posts={posts} />
     </div>
   );
 }
