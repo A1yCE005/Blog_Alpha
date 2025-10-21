@@ -4,9 +4,15 @@ import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import type { Options as RehypeHighlightOptions } from "rehype-highlight";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import bash from "highlight.js/lib/languages/bash";
+import javascript from "highlight.js/lib/languages/javascript";
+import json from "highlight.js/lib/languages/json";
+import python from "highlight.js/lib/languages/python";
+import typescript from "highlight.js/lib/languages/typescript";
 
 import type { PostContent } from "@/lib/posts";
 import { PostPageTransition } from "./PostPageTransition";
@@ -50,6 +56,24 @@ const KATEX_MATHML_TAGS = [
 
 const SAFE_TOKEN = /^[a-zA-Z0-9_-]+$/;
 const SAFE_STYLE = /^[-:;,%0-9a-zA-Z. ()]*$/;
+
+const highlightOptions: RehypeHighlightOptions = {
+  detect: false,
+  languages: {
+    bash,
+    shell: bash,
+    sh: bash,
+    javascript,
+    js: javascript,
+    jsx: javascript,
+    json,
+    python,
+    py: python,
+    typescript,
+    ts: typescript,
+    tsx: typescript,
+  },
+};
 
 const markdownSanitizeSchema = {
   ...defaultSchema,
@@ -255,7 +279,7 @@ export function PostPageContent({ post, backHref = "/?view=blog" }: PostPageCont
           rehypePlugins={[
             rehypeRaw,
             rehypeKatex,
-            rehypeHighlight,
+            [rehypeHighlight, highlightOptions],
             [rehypeSanitize, markdownSanitizeSchema],
           ]}
         >

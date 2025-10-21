@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { BlogMain } from "@/components/BlogMain";
 import type { PostSummary } from "@/lib/posts";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
 const CONFIG = {
@@ -66,18 +67,6 @@ const CONFIG = {
   idleScatterVelocityApproach: 0.36,
   idleGatherTransitionMs: 2600
 };
-
-function usePrefersReducedMotion() {
-  const [prefers, setPrefers] = React.useState(false);
-  React.useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const on = () => setPrefers(mq.matches);
-    on();
-    mq.addEventListener?.("change", on);
-    return () => mq.removeEventListener?.("change", on);
-  }, []);
-  return prefers;
-}
 
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 // 近似 cubic-bezier(0.4, 0.0, 0.2, 1)
