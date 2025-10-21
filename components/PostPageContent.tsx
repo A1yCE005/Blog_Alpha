@@ -1,18 +1,21 @@
-"use client";
-
 import React from "react";
-import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import type { Options as RehypeHighlightOptions } from "rehype-highlight";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import bash from "highlight.js/lib/languages/bash";
+import javascript from "highlight.js/lib/languages/javascript";
+import json from "highlight.js/lib/languages/json";
+import python from "highlight.js/lib/languages/python";
+import typescript from "highlight.js/lib/languages/typescript";
 
 import type { PostContent } from "@/lib/posts";
-import { usePageTransition } from "@/hooks/usePageTransition";
+import { PostPageTransition } from "./PostPageTransition";
 
 const KATEX_MATHML_TAGS = [
   "annotation",
@@ -53,6 +56,24 @@ const KATEX_MATHML_TAGS = [
 
 const SAFE_TOKEN = /^[a-zA-Z0-9_-]+$/;
 const SAFE_STYLE = /^[-:;,%0-9a-zA-Z. ()]*$/;
+
+const highlightOptions: RehypeHighlightOptions = {
+  detect: false,
+  languages: {
+    bash,
+    shell: bash,
+    sh: bash,
+    javascript,
+    js: javascript,
+    jsx: javascript,
+    json,
+    python,
+    py: python,
+    typescript,
+    ts: typescript,
+    tsx: typescript,
+  },
+};
 
 const markdownSanitizeSchema = {
   ...defaultSchema,
@@ -226,69 +247,55 @@ type PostPageContentProps = {
 
 export function PostPageContent({ post, backHref = "/?view=blog" }: PostPageContentProps) {
   const resetKey = `post:${post.slug}`;
-  const { isTransitioning, handleLinkClick } = usePageTransition(resetKey);
-  const isInteractive = !isTransitioning;
+  const containerId = `post-page-${post.slug.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 
   return (
-    <>
-      <div
-        aria-hidden
-        className={`page-transition-overlay ${isTransitioning ? "page-transition-overlay-active" : ""}`}
-      />
-      <div
-        className={`relative min-h-screen bg-black page-fade-in transition-opacity duration-300 ease-out ${
-          isTransitioning ? "pointer-events-none opacity-0" : "opacity-100"
-        }`}
-      >
-        <div className="mx-auto w-full max-w-3xl px-6 py-20 sm:px-10">
-          <div className="mb-10">
-            <Link
-              href={backHref}
-              onClick={(event) => handleLinkClick(event, backHref)}
-              className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-500 transition-colors duration-200 hover:text-violet-200"
-              tabIndex={isInteractive ? undefined : -1}
-            >
-              <span aria-hidden>←</span> Back to the cloud
-            </Link>
-          </div>
-          <div className="flex flex-col gap-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-violet-300/80">
-              {dateFormatter.format(new Date(post.date))}
-            </p>
-            <h1 className="text-4xl font-semibold tracking-tight text-zinc-50 sm:text-5xl">
-              {post.title}
-            </h1>
-            <p className="text-sm uppercase tracking-[0.25em] text-zinc-500">{post.readingTime}</p>
-            {post.tags.length > 0 && (
-              <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.2em] text-zinc-500">
-                {post.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full border border-white/10 px-3 py-1 text-[0.7rem] font-semibold text-zinc-300"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <article className="mt-12 flex flex-col gap-6 text-base text-zinc-200">
-            <ReactMarkdown
-              components={markdownComponents}
-              remarkPlugins={[remarkGfm, remarkMath]}
-              rehypePlugins={[
-                rehypeRaw,
-                rehypeKatex,
-                rehypeHighlight,
-                [rehypeSanitize, markdownSanitizeSchema],
-              ]}
-            >
-              {post.content}
-            </ReactMarkdown>
-          </article>
+    <div
+      id={containerId}
+      className="pointer-events-auto relative min-h-screen bg-black page-fade-in opacity-100 transition-opacity duration-300 ease-out"
+    >
+      <div className="mx-auto w-full max-w-3xl px-6 py-20 sm:px-10">
+        <div className="mb-10">
+          <PostPageTransition backHref={backHref} resetKey={resetKey} containerId={containerId} />
         </div>
+
+        <div className="flex flex-col gap-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-violet-300/80">
+            {dateFormatter.format(new Date(post.date))}
+          </p>
+          <h1 className="text-4xl font-semibold tracking-tight text-zinc-50 sm:text-5xl">
+            {post.title}
+          </h1>
+          <p className="text-sm uppercase tracking-[0.25em] text-zinc-500">{post.readingTime}</p>
+          {post.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.2em] text-zinc-500">
+              {post.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full border border-white/10 px-3 py-1 text-[0.7rem] font-semibold text-zinc-300"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <article className="mt-12 flex flex-col gap-6 text-base text-zinc-200">
+          <ReactMarkdown
+            components={markdownComponents}
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[
+              rehypeRaw,
+              rehypeKatex,
+              [rehypeHighlight, highlightOptions],
+              [rehypeSanitize, markdownSanitizeSchema],
+            ]}
+          >
+            {post.content}
+          </ReactMarkdown>
+        </article>
       </div>
-    </>
+    </div>
   );
 }
