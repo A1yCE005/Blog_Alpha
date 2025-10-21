@@ -634,7 +634,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         }`}
       />
       <div
-        className={`relative min-h-screen bg-black page-fade-in transition-opacity duration-300 ease-out ${
+        className={`relative min-h-screen bg-black/80 backdrop-blur-2xl supports-[backdrop-filter:blur(0)]:backdrop-blur-3xl page-fade-in transition-opacity duration-300 ease-out ${
           isTransitioning ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
       >
