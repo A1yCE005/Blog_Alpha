@@ -1,5 +1,3 @@
-"use client";
-
 import React from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
@@ -11,8 +9,8 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 
+import { PostPageTransitionManager } from "@/components/PostPageTransitionManager";
 import type { PostContent } from "@/lib/posts";
-import { usePageTransition } from "@/hooks/usePageTransition";
 
 const KATEX_MATHML_TAGS = [
   "annotation",
@@ -226,27 +224,21 @@ type PostPageContentProps = {
 
 export function PostPageContent({ post, backHref = "/?view=blog" }: PostPageContentProps) {
   const resetKey = `post:${post.slug}`;
-  const { isTransitioning, handleLinkClick } = usePageTransition(resetKey);
-  const isInteractive = !isTransitioning;
 
   return (
     <>
+      <PostPageTransitionManager resetKey={resetKey} backHref={backHref} />
+      <div aria-hidden className="page-transition-overlay" data-transition-overlay={resetKey} />
       <div
-        aria-hidden
-        className={`page-transition-overlay ${isTransitioning ? "page-transition-overlay-active" : ""}`}
-      />
-      <div
-        className={`relative min-h-screen bg-black page-fade-in transition-opacity duration-300 ease-out ${
-          isTransitioning ? "pointer-events-none opacity-0" : "opacity-100"
-        }`}
+        className="relative min-h-screen bg-black page-fade-in transition-opacity duration-300 ease-out opacity-100"
+        data-transition-container={resetKey}
       >
         <div className="mx-auto w-full max-w-3xl px-6 py-20 sm:px-10">
           <div className="mb-10">
             <Link
               href={backHref}
-              onClick={(event) => handleLinkClick(event, backHref)}
               className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-500 transition-colors duration-200 hover:text-violet-200"
-              tabIndex={isInteractive ? undefined : -1}
+              data-transition-link={resetKey}
             >
               <span aria-hidden>←</span> Back to the cloud
             </Link>
