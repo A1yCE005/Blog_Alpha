@@ -699,9 +699,13 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         className={`relative min-h-screen bg-black/80 backdrop-blur-2xl supports-[backdrop-filter:blur(0)]:backdrop-blur-3xl page-fade-in transition-opacity duration-300 ease-out ${
           isTransitioning ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
+        style={{ minHeight: "100dvh" }}
         onClick={handlePageClick}
       >
-        <div className="mx-auto flex h-screen w-full max-w-4xl flex-col px-6 sm:px-12">
+        <div
+          className="mx-auto flex h-screen w-full max-w-4xl flex-col px-6 sm:px-12"
+          style={{ height: "100dvh", minHeight: "100dvh" }}
+        >
           {pool.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-white/10 bg-zinc-950/40 p-16 text-center text-sm text-zinc-400">
               No storm quotes available yet. Add entries to
