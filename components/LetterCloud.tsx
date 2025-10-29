@@ -1115,9 +1115,10 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 type FullscreenHomeProps = {
   posts: PostSummary[];
   initialBlogView?: boolean;
+  layoutSeed: number;
 };
 
-export default function FullscreenHome({ posts, initialBlogView = false }: FullscreenHomeProps) {
+export default function FullscreenHome({ posts, initialBlogView = false, layoutSeed }: FullscreenHomeProps) {
   const [word, setWord] = React.useState(CONFIG.word);
   const [gap, setGap] = React.useState(CONFIG.sampleGap);
   const [letterSpacing, setLetterSpacing] = React.useState(CONFIG.letterSpacing);
@@ -1255,7 +1256,7 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
           )}
         </section>
       )}
-      <BlogMain visible={blogVisible} posts={posts} />
+      <BlogMain visible={blogVisible} posts={posts} layoutSeed={layoutSeed} />
     </div>
   );
 }

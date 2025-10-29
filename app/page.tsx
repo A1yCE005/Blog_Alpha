@@ -5,13 +5,19 @@ type PageProps = {
   searchParams?: Record<string, string | string[] | undefined>;
 };
 
-const MAX_BLOG_POSTS = 5;
-
 export default async function Page({ searchParams }: PageProps) {
-  const posts = (await getAllPosts()).slice(0, MAX_BLOG_POSTS);
+  const posts = await getAllPosts();
   const viewParam = searchParams?.view;
   const view = Array.isArray(viewParam) ? viewParam[0] : viewParam;
   const initialBlogView = view === "blog";
 
-  return <LetterCloud posts={posts} initialBlogView={initialBlogView} />;
+  const layoutSeed = Math.floor(Math.random() * 1_000_000);
+
+  return (
+    <LetterCloud
+      posts={posts}
+      initialBlogView={initialBlogView}
+      layoutSeed={layoutSeed}
+    />
+  );
 }
