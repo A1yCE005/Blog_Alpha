@@ -1,10 +1,98 @@
 "use client";
 
 import Link from "next/link";
+import { useState, type CSSProperties } from "react";
 
 import type { PostSummary } from "@/lib/posts";
-import { PostCard } from "@/components/PostCard";
+import { PostCard, type PostCardSize } from "@/components/PostCard";
 import { usePageTransition } from "@/hooks/usePageTransition";
+
+const MIN_FEATURED_POSTS = 6;
+const MAX_FEATURED_POSTS = 8;
+
+type LayoutSlot = {
+  top: number;
+  left: number;
+};
+
+const LAYOUT_SLOTS: LayoutSlot[] = [
+  { top: 18, left: 26 },
+  { top: 21, left: 58 },
+  { top: 30, left: 82 },
+  { top: 38, left: 36 },
+  { top: 46, left: 64 },
+  { top: 54, left: 18 },
+  { top: 57, left: 84 },
+  { top: 68, left: 42 },
+  { top: 74, left: 68 },
+  { top: 82, left: 24 },
+  { top: 86, left: 52 },
+  { top: 34, left: 14 }
+];
+
+const SIZE_SEQUENCE: PostCardSize[] = ["lg", "md", "md", "sm", "md", "lg", "sm", "md"];
+
+type FloatingCardLayout = {
+  post: PostSummary;
+  size: PostCardSize;
+  top: number;
+  left: number;
+  rotation: number;
+  width: number;
+  delay: number;
+  zIndex: number;
+};
+
+const clamp = (value: number, min: number, max: number) => {
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+};
+
+const shuffleArray = <T,>(input: readonly T[]): T[] => {
+  const array = [...input];
+  for (let index = array.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [array[index], array[randomIndex]] = [array[randomIndex], array[index]];
+  }
+  return array;
+};
+
+const pickFloatingLayouts = (posts: PostSummary[]): FloatingCardLayout[] => {
+  if (posts.length === 0) {
+    return [];
+  }
+
+  const upperBound = Math.min(posts.length, MAX_FEATURED_POSTS);
+  const lowerBound = Math.min(posts.length, MIN_FEATURED_POSTS);
+  const countRange = upperBound - lowerBound;
+  const count = upperBound === lowerBound ? upperBound : lowerBound + Math.floor(Math.random() * (countRange + 1));
+
+  const selectedPosts = shuffleArray(posts).slice(0, count);
+  const slotPool = shuffleArray(LAYOUT_SLOTS).slice(0, count);
+  const sizePool = shuffleArray(
+    Array.from({ length: count }, (_, index) => SIZE_SEQUENCE[index % SIZE_SEQUENCE.length] ?? "md")
+  );
+
+  return selectedPosts.map((post, index) => {
+    const slot = slotPool[index] ?? { top: 50, left: 50 };
+    const size = sizePool[index] ?? "md";
+    const width = size === "lg" ? 360 : size === "sm" ? 240 : 300;
+    const topJitter = (Math.random() - 0.5) * 12; // ±6
+    const leftJitter = (Math.random() - 0.5) * 16; // ±8
+
+    return {
+      post,
+      size,
+      top: clamp(slot.top + topJitter, 10, 90),
+      left: clamp(slot.left + leftJitter, 12, 88),
+      rotation: (Math.random() - 0.5) * 10, // ±5deg
+      width,
+      delay: Math.round(Math.random() * 220 + index * 45),
+      zIndex: 20 + index
+    };
+  });
+};
 
 type BlogMainProps = {
   visible: boolean;
@@ -14,6 +102,7 @@ type BlogMainProps = {
 export function BlogMain({ visible, posts }: BlogMainProps) {
   const { isTransitioning, handleLinkClick } = usePageTransition("home");
   const isInteractive = visible && !isTransitioning;
+  const [floatingPosts] = useState(() => pickFloatingLayouts(posts));
 
   return (
     <>
@@ -70,18 +159,77 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
             </nav>
           </header>
 
-          {posts.length > 0 ? (
-            <div className="flex flex-col gap-6">
-              {posts.map((post) => (
-                <PostCard
-                  key={post.slug}
-                  post={post}
-                  href={`/posts/${post.slug}`}
-                  onClick={(event) => handleLinkClick(event, `/posts/${post.slug}`)}
-                  tabIndex={isInteractive ? undefined : -1}
-                />
-              ))}
-            </div>
+          {floatingPosts.length > 0 ? (
+            <>
+              <div
+                aria-hidden={!visible}
+                className={`relative hidden min-h-[50rem] w-full transition-opacity duration-500 ease-out md:block ${
+                  visible ? "opacity-100" : "opacity-0"
+                } ${
+                  isInteractive ? "pointer-events-auto" : "pointer-events-none"
+                }`}
+              >
+                {floatingPosts.map((item) => {
+                  const wrapperStyle: CSSProperties = {
+                    top: `${item.top}%`,
+                    left: `${item.left}%`,
+                    width: `${item.width}px`,
+                    zIndex: item.zIndex
+                  };
+                  const rotationStyle: CSSProperties = {
+                    ["--tw-rotate" as "--tw-rotate"]: `${item.rotation}deg`
+                  };
+                  const animationStyle: CSSProperties = {
+                    transitionDelay: `${item.delay}ms`
+                  };
+
+                  return (
+                    <div key={item.post.slug} className="absolute" style={wrapperStyle}>
+                      <div className="transform -translate-x-1/2 -translate-y-1/2" style={rotationStyle}>
+                        <div
+                          className={`transform transition-all duration-700 ease-out ${
+                            visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+                          } ${isInteractive ? "pointer-events-auto" : "pointer-events-none"}`}
+                          style={animationStyle}
+                        >
+                          <PostCard
+                            post={item.post}
+                            href={`/posts/${item.post.slug}`}
+                            onClick={(event) => handleLinkClick(event, `/posts/${item.post.slug}`)}
+                            tabIndex={isInteractive ? undefined : -1}
+                            aria-hidden={!visible}
+                            variant="floating"
+                            size={item.size}
+                            className="w-full"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div
+                className={`flex flex-col gap-6 transition-opacity duration-500 ease-out md:hidden ${
+                  visible ? "opacity-100" : "opacity-0"
+                } ${
+                  isInteractive ? "pointer-events-auto" : "pointer-events-none"
+                }`}
+              >
+                {floatingPosts.map((item, index) => (
+                  <PostCard
+                    key={item.post.slug}
+                    post={item.post}
+                    href={`/posts/${item.post.slug}`}
+                    onClick={(event) => handleLinkClick(event, `/posts/${item.post.slug}`)}
+                    tabIndex={isInteractive ? undefined : -1}
+                    aria-hidden={!visible}
+                    variant="default"
+                    size={index === 0 ? "lg" : "md"}
+                  />
+                ))}
+              </div>
+            </>
           ) : (
             <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 bg-zinc-950/50 p-12 text-center text-sm text-zinc-400">
               <p>
