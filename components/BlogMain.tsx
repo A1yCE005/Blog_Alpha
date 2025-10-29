@@ -1,10 +1,192 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 
 import type { PostSummary } from "@/lib/posts";
 import { PostCard } from "@/components/PostCard";
 import { usePageTransition } from "@/hooks/usePageTransition";
+
+type GridStyle = React.CSSProperties;
+
+type GridCard = {
+  post: PostSummary;
+  style: GridStyle;
+  size: "small" | "medium" | "large";
+};
+
+function randomInt(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function shuffle<T>(input: readonly T[]): T[] {
+  const array = [...input];
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j]!, array[i]!];
+  }
+  return array;
+}
+
+const COLUMN_CHOICES = [3, 4, 6, 8, 9] as const;
+
+type ColumnChoice = (typeof COLUMN_CHOICES)[number];
+
+function canFill(remaining: number, slots: number, memo: Map<string, boolean>): boolean {
+  if (remaining === 0) {
+    return true;
+  }
+
+  if (slots === 0 || remaining < COLUMN_CHOICES[0]) {
+    return false;
+  }
+
+  const key = `${remaining}:${slots}`;
+  if (memo.has(key)) {
+    return memo.get(key)!;
+  }
+
+  for (const choice of COLUMN_CHOICES) {
+    if (choice > remaining) {
+      continue;
+    }
+
+    if (canFill(remaining - choice, slots - 1, memo)) {
+      memo.set(key, true);
+      return true;
+    }
+  }
+
+  memo.set(key, false);
+  return false;
+}
+
+function pickSpan(
+  remaining: number,
+  cardsRemaining: number,
+  { allowFullWidth }: { allowFullWidth: boolean }
+): ColumnChoice | number {
+  if (cardsRemaining <= 1) {
+    return remaining;
+  }
+
+  const memo = new Map<string, boolean>();
+  const options = COLUMN_CHOICES.filter((choice) => {
+    if (!allowFullWidth && choice === remaining && remaining === 12) {
+      return false;
+    }
+
+    if (choice > remaining) {
+      return false;
+    }
+
+    const nextRemaining = remaining - choice;
+    if (nextRemaining === 0) {
+      return true;
+    }
+
+    return canFill(nextRemaining, cardsRemaining - 1, memo);
+  });
+
+  if (options.length === 0) {
+    return remaining;
+  }
+
+  return options[Math.floor(Math.random() * options.length)]!;
+}
+
+function createGridLayout(posts: PostSummary[]): GridCard[] {
+  if (posts.length === 0) {
+    return [];
+  }
+
+  const count = Math.min(posts.length, randomInt(6, 8));
+  const selection = shuffle(posts).slice(0, count);
+
+  let remainingColumns = 12;
+
+  return selection.map((post, index) => {
+    const cardsRemaining = selection.length - index;
+    const isNewRow = remainingColumns === 12;
+    const isFirstCard = index === 0;
+
+    let span: number;
+
+    if (isFirstCard && cardsRemaining > 1) {
+      const preferred = [9, 8, 6] as const;
+      const memo = new Map<string, boolean>();
+      const candidates = preferred.filter((choice) => {
+        if (choice > remainingColumns) {
+          return false;
+        }
+
+        const nextRemaining = remainingColumns - choice;
+        if (nextRemaining === 0) {
+          return true;
+        }
+
+        return canFill(nextRemaining, cardsRemaining - 1, memo);
+      });
+
+      span = (candidates.length > 0 ? candidates[randomInt(0, candidates.length - 1)] : remainingColumns);
+    } else {
+      span = pickSpan(remainingColumns, cardsRemaining, {
+        allowFullWidth: isNewRow,
+      });
+    }
+
+    if (span > remainingColumns) {
+      remainingColumns = 12;
+      span = pickSpan(remainingColumns, cardsRemaining, {
+        allowFullWidth: true,
+      });
+    }
+
+    if (cardsRemaining === 1) {
+      span = remainingColumns;
+    }
+
+    const spanClamped = Math.max(3, Math.min(span, 12));
+    const rowSpan = (() => {
+      if (spanClamped >= 9) {
+        return randomInt(2, 3);
+      }
+      if (spanClamped >= 6) {
+        return randomInt(2, 3);
+      }
+      return 2;
+    })();
+
+    const size = (() => {
+      if (spanClamped >= 9 || rowSpan === 3) {
+        return "large" as const;
+      }
+      if (spanClamped >= 6) {
+        return "medium" as const;
+      }
+      return "small" as const;
+    })();
+
+    const minHeight = rowSpan === 3 ? randomInt(22, 24) : randomInt(14, 16);
+    const maxHeight = minHeight + (rowSpan === 3 ? randomInt(2, 3) : randomInt(1, 2));
+
+    const style: GridStyle = {
+      gridColumn: `span ${spanClamped} / span ${spanClamped}`,
+      gridRow: `span ${rowSpan} / span ${rowSpan}`,
+      minHeight: `${minHeight}rem`,
+      maxHeight: `${maxHeight}rem`,
+      alignSelf: "stretch",
+      justifySelf: "stretch",
+    };
+
+    remainingColumns -= spanClamped;
+    if (remainingColumns <= 0) {
+      remainingColumns = 12;
+    }
+
+    return { post, style, size };
+  });
+}
 
 type BlogMainProps = {
   visible: boolean;
@@ -14,6 +196,7 @@ type BlogMainProps = {
 export function BlogMain({ visible, posts }: BlogMainProps) {
   const { isTransitioning, handleLinkClick } = usePageTransition("home");
   const isInteractive = visible && !isTransitioning;
+  const featuredCards = React.useMemo(() => createGridLayout(posts), [posts]);
 
   return (
     <>
@@ -70,17 +253,31 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
             </nav>
           </header>
 
-          {posts.length > 0 ? (
-            <div className="flex flex-col gap-6">
-              {posts.map((post) => (
-                <PostCard
-                  key={post.slug}
-                  post={post}
-                  href={`/posts/${post.slug}`}
-                  onClick={(event) => handleLinkClick(event, `/posts/${post.slug}`)}
-                  tabIndex={isInteractive ? undefined : -1}
-                />
-              ))}
+          {featuredCards.length > 0 ? (
+            <div
+              className="relative flex flex-col gap-6 md:auto-rows-[minmax(8rem,auto)] md:grid md:grid-cols-12 md:grid-flow-row-dense md:gap-10"
+            >
+              {featuredCards.map(({ post, style, size }, index) => {
+                const postHref = `/posts/${post.slug}`;
+                return (
+                  <div
+                    key={post.slug}
+                    style={style}
+                    data-card-index={index}
+                    className="group/card relative h-full md:hover:z-[50]"
+                  >
+                    <PostCard
+                      post={post}
+                      href={postHref}
+                      size={size}
+                      onClick={(event) => handleLinkClick(event, postHref)}
+                      tabIndex={isInteractive ? undefined : -1}
+                      aria-hidden={isInteractive ? undefined : true}
+                      className="h-full"
+                    />
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 bg-zinc-950/50 p-12 text-center text-sm text-zinc-400">
