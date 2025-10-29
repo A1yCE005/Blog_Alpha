@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function PostNotFound() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-black px-6 py-20 text-center text-zinc-200">
+    <div className="flex min-h-screen-dvh flex-col items-center justify-center bg-black px-6 pt-20 pb-[calc(5rem+env(safe-area-inset-bottom))] text-center text-zinc-200">
       <p className="text-sm font-semibold uppercase tracking-[0.35em] text-violet-300/80">404</p>
       <h1 className="mt-4 text-3xl font-semibold">We lost this story in the storm.</h1>
       <p className="mt-4 max-w-md text-sm text-zinc-400">

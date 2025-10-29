@@ -233,12 +233,12 @@ export function ArchivePageContent({
         className={`page-transition-overlay ${isTransitioning ? "page-transition-overlay-active" : ""}`}
       />
       <div
-        className={`relative min-h-screen bg-black page-fade-in transition-opacity duration-300 ease-out ${
+        className={`relative min-h-screen-dvh bg-black pb-safe page-fade-in transition-opacity duration-300 ease-out ${
           isTransitioning ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
       >
         <div
-          className={`mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-10 px-6 py-16 transition-transform duration-300 ease-out sm:px-10 ${
+          className={`mx-auto flex min-h-screen-dvh w-full max-w-4xl flex-col gap-10 px-6 pt-16 pb-[calc(4rem+env(safe-area-inset-bottom))] transition-transform duration-300 ease-out sm:px-10 ${
             isInteractive ? "translate-y-0" : "translate-y-8"
           }`}
         >
