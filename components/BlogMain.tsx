@@ -1,10 +1,71 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 
 import type { PostSummary } from "@/lib/posts";
 import { PostCard } from "@/components/PostCard";
 import { usePageTransition } from "@/hooks/usePageTransition";
+
+type GridStyle = React.CSSProperties;
+
+type GridCard = {
+  post: PostSummary;
+  style: GridStyle;
+};
+
+function randomInt(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function shuffle<T>(input: readonly T[]): T[] {
+  const array = [...input];
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j]!, array[i]!];
+  }
+  return array;
+}
+
+function createGridLayout(posts: PostSummary[]): GridCard[] {
+  if (posts.length === 0) {
+    return [];
+  }
+
+  const count = Math.min(posts.length, randomInt(6, 8));
+  const selection = shuffle(posts).slice(0, count);
+
+  return selection.map((post, index) => {
+    const span = Math.min(
+      12,
+      Math.max(
+        4,
+        index === 0 ? randomInt(8, 12) : index < 3 ? randomInt(6, 8) : randomInt(4, 7)
+      )
+    );
+    const rowSpan = index === 0 ? randomInt(3, 4) : randomInt(2, 3);
+
+    const minHeight = (() => {
+      if (rowSpan >= 4) {
+        return randomInt(24, 28);
+      }
+      if (rowSpan === 3) {
+        return randomInt(20, 24);
+      }
+      return randomInt(16, 20);
+    })();
+
+    const style: GridStyle = {
+      gridColumn: `span ${span} / span ${span}`,
+      gridRow: `span ${rowSpan} / span ${rowSpan}`,
+      minHeight: `${minHeight}rem`,
+      alignSelf: "stretch",
+      justifySelf: "stretch",
+    };
+
+    return { post, style };
+  });
+}
 
 type BlogMainProps = {
   visible: boolean;
@@ -14,6 +75,7 @@ type BlogMainProps = {
 export function BlogMain({ visible, posts }: BlogMainProps) {
   const { isTransitioning, handleLinkClick } = usePageTransition("home");
   const isInteractive = visible && !isTransitioning;
+  const featuredCards = React.useMemo(() => createGridLayout(posts), [posts]);
 
   return (
     <>
@@ -70,17 +132,30 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
             </nav>
           </header>
 
-          {posts.length > 0 ? (
-            <div className="flex flex-col gap-6">
-              {posts.map((post) => (
-                <PostCard
-                  key={post.slug}
-                  post={post}
-                  href={`/posts/${post.slug}`}
-                  onClick={(event) => handleLinkClick(event, `/posts/${post.slug}`)}
-                  tabIndex={isInteractive ? undefined : -1}
-                />
-              ))}
+          {featuredCards.length > 0 ? (
+            <div
+              className="relative flex flex-col gap-6 md:auto-rows-[minmax(14rem,auto)] md:grid md:grid-cols-12 md:gap-10"
+            >
+              {featuredCards.map(({ post, style }, index) => {
+                const postHref = `/posts/${post.slug}`;
+                return (
+                  <div
+                    key={post.slug}
+                    style={style}
+                    data-card-index={index}
+                    className="group/card relative h-full md:hover:z-[50]"
+                  >
+                    <PostCard
+                      post={post}
+                      href={postHref}
+                      onClick={(event) => handleLinkClick(event, postHref)}
+                      tabIndex={isInteractive ? undefined : -1}
+                      aria-hidden={isInteractive ? undefined : true}
+                      className="h-full"
+                    />
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 bg-zinc-950/50 p-12 text-center text-sm text-zinc-400">
