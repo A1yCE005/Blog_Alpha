@@ -25,6 +25,7 @@ export function PostPageTransition({ resetKey, backHref, children }: PostPageTra
         className={`relative min-h-screen bg-black page-fade-in transition-opacity duration-300 ease-out ${
           isTransitioning ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
+        style={{ minHeight: "100dvh" }}
       >
         <div className="mx-auto w-full max-w-3xl px-6 py-20 sm:px-10">
           <div className="mb-10">

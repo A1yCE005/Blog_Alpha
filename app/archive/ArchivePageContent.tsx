@@ -236,11 +236,13 @@ export function ArchivePageContent({
         className={`relative min-h-screen bg-black page-fade-in transition-opacity duration-300 ease-out ${
           isTransitioning ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
+        style={{ minHeight: "100dvh" }}
       >
         <div
           className={`mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-10 px-6 py-16 transition-transform duration-300 ease-out sm:px-10 ${
             isInteractive ? "translate-y-0" : "translate-y-8"
           }`}
+          style={{ minHeight: "100dvh" }}
         >
           <Link
             href="/?view=blog"
