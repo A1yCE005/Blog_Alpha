@@ -64,25 +64,33 @@ const ACCENT_PALETTE: ReadonlyArray<{
 const JUSTIFY_OPTIONS: ReadonlyArray<ScatterStyle["justifySelf"]> = ["start", "center", "end", "stretch"];
 const ALIGN_OPTIONS: ReadonlyArray<ScatterStyle["alignSelf"]> = ["start", "center", "end", "stretch"];
 
-function randomInt(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+function hashSeed(input: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
 }
 
-function randomFloat(min: number, max: number) {
-  return Math.random() * (max - min) + min;
+function createRandomGenerator(seed: string): () => number {
+  let state = hashSeed(seed) || 1;
+  return () => {
+    state += 0x6d2b79f5;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
-function shuffle<T>(input: readonly T[]): T[] {
+function shuffleWithRandom<T>(input: readonly T[], random: () => number): T[] {
   const array = [...input];
   for (let i = array.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(random() * (i + 1));
     [array[i], array[j]] = [array[j]!, array[i]!];
   }
   return array;
-}
-
-function sample<T>(input: readonly T[]): T {
-  return input[Math.floor(Math.random() * input.length)]!;
 }
 
 function createScatterLayout(posts: PostSummary[]): ScatterCard[] {
@@ -90,8 +98,14 @@ function createScatterLayout(posts: PostSummary[]): ScatterCard[] {
     return [];
   }
 
+  const seed = posts.map((post) => `${post.slug}:${post.date}`).join("|");
+  const random = createRandomGenerator(seed);
+  const randomInt = (min: number, max: number) => Math.floor(random() * (max - min + 1)) + min;
+  const randomFloat = (min: number, max: number) => random() * (max - min) + min;
+  const sample = <T,>(input: readonly T[]) => input[Math.floor(random() * input.length)]!;
+
   const count = Math.min(posts.length, randomInt(6, 8));
-  const selection = shuffle(posts).slice(0, count);
+  const selection = shuffleWithRandom(posts, random).slice(0, count);
 
   return selection.map((post, index) => {
     const accent = ACCENT_PALETTE[index % ACCENT_PALETTE.length]!;
