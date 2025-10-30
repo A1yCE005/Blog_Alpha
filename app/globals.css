@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 .page-content pre code.hljs,
 article pre code.hljs,
 pre code.hljs {
@@ -57,29 +61,220 @@ article pre {
 .storm-quote-body {
   display: inline-block;
   padding-inline: clamp(1.4rem, 5vw, 3.25rem);
-  transition: color 320ms ease, filter 320ms ease, opacity 320ms ease;
+  transition: color var(--duration-emphasized) var(--ease-standard),
+    filter var(--duration-emphasized) var(--ease-standard),
+    opacity var(--duration-emphasized) var(--ease-standard);
 }
 
 article pre::-webkit-scrollbar {
   height: 10px;
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@layer base {
+  :root {
+    color-scheme: dark;
+    --color-background: 240 18% 5%;
+    --color-foreground: 220 19% 85%;
+    --color-muted: 218 13% 68%;
+    --color-surface: 240 22% 12%;
+    --color-border: 240 18% 24%;
+    --color-brand: 262 83% 76%;
+    --color-brand-foreground: 266 100% 94%;
+    --color-code-bg: 240 30% 18%;
+    --color-code-border: 240 22% 30%;
+    --scrollbar-track: rgba(10, 9, 16, 0.85);
+    --scrollbar-thumb: rgba(58, 57, 76, 0.82);
+    --scrollbar-thumb-hover: rgba(82, 80, 105, 0.88);
+    --scrollbar-thumb-active: rgba(110, 108, 140, 0.94);
+    --scrollbar-thumb-border: rgba(5, 4, 10, 0.9);
+    --radius-sm: 0.625rem;
+    --radius-md: 1rem;
+    --radius-lg: 1.5rem;
+    --line-height-tight: 1.15;
+    --line-height-snug: 1.32;
+    --line-height-relaxed: 1.7;
+    --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+    --duration-standard: 200ms;
+    --duration-emphasized: 320ms;
+  }
 
-:root {
-  --background: #000;
-  --foreground: #e5e7eb;
-  --scrollbar-track: rgba(10, 9, 16, 0.85);
-  --scrollbar-thumb: rgba(58, 57, 76, 0.82);
-  --scrollbar-thumb-hover: rgba(82, 80, 105, 0.88);
-  --scrollbar-thumb-active: rgba(110, 108, 140, 0.94);
-  --scrollbar-thumb-border: rgba(5, 4, 10, 0.9);
+  html {
+    height: 100%;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100%;
+    background-color: hsl(var(--color-background));
+    color: hsl(var(--color-foreground));
+    font-family: var(--typography-body, var(--font-sans));
+    line-height: var(--line-height-relaxed);
+    font-size: 1rem;
+    font-feature-settings: "kern" 1, "liga" 1, "clig" 1, "calt" 1;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--typography-mono, var(--font-mono));
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }
-html, body { height: 100%; }
-body { color: var(--foreground); background: var(--background); }
-a { text-decoration: none; }
+
+@layer components {
+  .prose {
+    --tw-prose-body: hsl(var(--color-muted));
+    --tw-prose-headings: hsl(var(--color-foreground));
+    --tw-prose-lead: hsl(var(--color-foreground));
+    --tw-prose-links: hsl(var(--color-brand));
+    --tw-prose-bold: hsl(var(--color-foreground));
+    --tw-prose-counters: hsl(var(--color-muted));
+    --tw-prose-bullets: hsl(var(--color-muted));
+    --tw-prose-hr: hsl(var(--color-border) / 0.5);
+    --tw-prose-quotes: hsl(var(--color-foreground));
+    --tw-prose-quote-borders: hsl(var(--color-brand) / 0.5);
+    --tw-prose-captions: hsl(var(--color-muted));
+    --tw-prose-code: hsl(var(--color-foreground));
+    --tw-prose-pre-code: hsl(var(--color-foreground));
+    --tw-prose-pre-bg: hsl(var(--color-code-bg) / 0.85);
+    --tw-prose-th-borders: hsl(var(--color-border) / 0.6);
+    --tw-prose-td-borders: hsl(var(--color-border) / 0.4);
+    --tw-prose-kbd: hsl(var(--color-brand));
+    --tw-prose-kbd-shadows: hsl(var(--color-brand) / 0.4);
+  }
+
+  .prose :where(h1, h2, h3, h4, h5, h6) {
+    font-family: var(--typography-body, var(--font-sans));
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: var(--line-height-snug);
+  }
+
+  .prose :where(h1) {
+    font-size: clamp(2.5rem, 5vw, 3.5rem);
+    margin-top: 2.5rem;
+  }
+
+  .prose :where(h2) {
+    font-size: clamp(2rem, 4vw, 3rem);
+    margin-top: 3rem;
+  }
+
+  .prose :where(h3) {
+    font-size: clamp(1.5rem, 3vw, 2.25rem);
+    margin-top: 2.5rem;
+  }
+
+  .prose :where(h4) {
+    font-size: 1.375rem;
+    margin-top: 2rem;
+  }
+
+  .prose :where(p, ul, ol, blockquote) {
+    color: hsl(var(--color-muted));
+    line-height: var(--line-height-relaxed);
+    text-wrap: pretty;
+  }
+
+  .prose :where(a) {
+    color: hsl(var(--color-brand));
+    text-decoration: underline;
+    text-decoration-color: hsl(var(--color-brand) / 0.5);
+    text-underline-offset: 0.25em;
+    transition: color var(--duration-standard) var(--ease-standard),
+      text-decoration-color var(--duration-standard) var(--ease-standard);
+  }
+
+  .prose :where(a:hover) {
+    color: hsl(var(--color-brand-foreground));
+    text-decoration-color: hsl(var(--color-brand-foreground) / 0.75);
+  }
+
+  .prose :where(code):not(:where(pre code)) {
+    background-color: hsl(var(--color-code-bg) / 0.7);
+    border: 1px solid hsl(var(--color-code-border) / 0.55);
+    border-radius: var(--radius-sm);
+    color: hsl(var(--color-brand-foreground));
+    font-size: 0.9em;
+    padding: 0.125rem 0.375rem;
+  }
+
+  .prose :where(pre) {
+    background-color: hsl(var(--color-code-bg) / 0.85);
+    border: 1px solid hsl(var(--color-code-border) / 0.6);
+    border-radius: var(--radius-lg);
+    box-shadow: inset 0 0 0 1px hsl(var(--color-border) / 0.2);
+    padding: 1.25rem;
+  }
+
+  .prose :where(pre code) {
+    color: inherit;
+    font-size: 0.95em;
+  }
+
+  .prose :where(blockquote) {
+    border-left: 4px solid hsl(var(--color-brand) / 0.45);
+    color: hsl(var(--color-foreground));
+    font-size: 1.1em;
+    font-style: italic;
+    padding-left: 1.25rem;
+  }
+
+  .prose :where(hr) {
+    border-color: hsl(var(--color-border) / 0.45);
+  }
+
+  .prose :where(table) {
+    display: block;
+    width: 100%;
+    border-collapse: collapse;
+    border-radius: var(--radius-lg);
+    border: 1px solid hsl(var(--color-border) / 0.4);
+    overflow: hidden;
+    overflow-x: auto;
+  }
+
+  .prose :where(thead) {
+    background-color: hsl(var(--color-surface) / 0.85);
+  }
+
+  .prose :where(th) {
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .prose :where(th, td) {
+    border-color: hsl(var(--color-border) / 0.3);
+    padding: 0.75rem 1rem;
+  }
+
+  .prose :where(img) {
+    border-radius: var(--radius-lg);
+    border: 1px solid hsl(var(--color-border) / 0.35);
+    background-color: hsl(var(--color-surface) / 0.7);
+    margin: 2rem auto;
+    max-width: 100%;
+  }
+
+  .prose :where(figcaption) {
+    color: hsl(var(--color-muted));
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+    text-align: center;
+  }
+}
 
 @keyframes pageFadeIn {
   from {
@@ -94,11 +289,11 @@ a { text-decoration: none; }
 }
 
 .page-fade-in {
-  animation: pageFadeIn 0.6s ease-out both;
+  animation: pageFadeIn 0.6s var(--ease-standard) both;
 }
 
 .filter-fade-in {
-  animation: pageFadeIn 0.45s ease-out both;
+  animation: pageFadeIn 0.45s var(--ease-standard) both;
 }
 
 @keyframes filterFadeOut {
@@ -114,17 +309,17 @@ a { text-decoration: none; }
 }
 
 .filter-fade-out {
-  animation: filterFadeOut 0.3s ease-in both;
+  animation: filterFadeOut 0.3s var(--ease-standard) both;
 }
 
 .page-transition-overlay {
   position: fixed;
   inset: 0;
   z-index: 30;
-  background: #000;
+  background: hsl(var(--color-background));
   opacity: 0;
   pointer-events: none;
-  transition: opacity 400ms ease;
+  transition: opacity 400ms var(--ease-standard);
 }
 
 .page-transition-overlay-active {
