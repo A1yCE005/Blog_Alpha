@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { ArchivePageContent } from "./ArchivePageContent";
+import { siteConfig } from "@/config/site";
 import { getAllPosts } from "@/lib/posts";
 import type { PostSummary } from "@/lib/posts";
-import { ArchivePageContent } from "./ArchivePageContent";
 
 const POSTS_PER_PAGE = 10;
 
@@ -36,9 +37,8 @@ function getTopTags(posts: PostSummary[], limit = 5): TagSummary[] {
 }
 
 export const metadata: Metadata = {
-  title: "Archive · Lighthouse",
-  description:
-    "Browse every post in the Letter Cloud blog archive. Discover essays, signals, and experiments from the studio's history.",
+  title: "Archive",
+  description: `Browse every post in the ${siteConfig.name} archive. Discover essays, signals, and experiments from the studio's history.`,
 };
 
 type PageProps = {

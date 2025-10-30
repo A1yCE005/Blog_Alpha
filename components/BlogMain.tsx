@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 
-import type { PostSummary } from "@/lib/posts";
 import { PostCard } from "@/components/PostCard";
 import { usePageTransition } from "@/hooks/usePageTransition";
+import type { PostSummary } from "@/lib/posts";
+import { siteConfig } from "@/config/site";
 
 type BlogMainProps = {
   visible: boolean;
@@ -37,9 +38,10 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
           <header className="flex flex-col gap-6 text-left">
             <div className="flex flex-col gap-3">
               <p className="text-sm font-medium uppercase tracking-[0.3em] text-violet-300/80">The Journal</p>
-              <h2 className="text-3xl font-semibold text-zinc-50 sm:text-4xl">Lighthosue</h2>
+              <h2 className="text-3xl font-semibold text-zinc-50 sm:text-4xl">{siteConfig.name}</h2>
               <p className="max-w-2xl text-sm text-zinc-400 sm:text-base">
-                Essays, signals, and experiments from the Letter Cloud studio. Click any post to keep the momentum of the particles going in your own practice.
+                Essays, signals, and experiments from the {siteConfig.name} studio. Click any post to keep the momentum of the
+                particles going in your own practice.
               </p>
             </div>
             <nav className="flex flex-wrap items-center gap-3">

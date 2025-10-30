@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getAllPosts, getPostBySlug } from "@/lib/posts";
 import { PostPageContent } from "@/components/PostPageContent";
+import { siteConfig } from "@/config/site";
+import { getAllPosts, getPostBySlug } from "@/lib/posts";
 
 type PageProps = {
   params: { slug: string };
@@ -20,10 +21,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!post) {
     return {
       title: "Post not found",
+      description: siteConfig.description,
     };
   }
   return {
-    title: `${post.title} · Lighthouse`,
+    title: post.title,
     description: post.excerpt,
   };
 }

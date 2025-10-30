@@ -1,3 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --background: 222 47% 5%;
+  --foreground: 220 14% 96%;
+  --brand: 259 94% 75%;
+  --scrollbar-track: rgba(9, 9, 15, 0.85);
+  --scrollbar-thumb: rgba(58, 57, 76, 0.82);
+  --scrollbar-thumb-hover: rgba(82, 80, 105, 0.88);
+  --scrollbar-thumb-active: rgba(110, 108, 140, 0.94);
+  --scrollbar-thumb-border: rgba(5, 4, 10, 0.9);
+  --font-family-sans: var(--font-sans, "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif);
+  --font-family-mono: var(--font-mono, "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+  --radius-sm: 0.75rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.75rem;
+  --leading-tight: 1.35;
+  --leading-relaxed: 1.7;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --duration-short: 150ms;
+  --duration-medium: 320ms;
+  --duration-long: 520ms;
+  --space-6: 1.5rem;
+  --space-10: 2.5rem;
+}
+
+html {
+  min-height: 100%;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+  font-family: var(--font-family-sans);
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-height: 100%;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-family-sans);
+  line-height: var(--leading-relaxed);
+  font-feature-settings: "kern" 1, "liga" 1, "clig" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--font-family-mono);
+  font-feature-settings: normal;
+}
+
 .page-content pre code.hljs,
 article pre code.hljs,
 pre code.hljs {
@@ -64,23 +126,6 @@ article pre::-webkit-scrollbar {
   height: 10px;
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-:root {
-  --background: #000;
-  --foreground: #e5e7eb;
-  --scrollbar-track: rgba(10, 9, 16, 0.85);
-  --scrollbar-thumb: rgba(58, 57, 76, 0.82);
-  --scrollbar-thumb-hover: rgba(82, 80, 105, 0.88);
-  --scrollbar-thumb-active: rgba(110, 108, 140, 0.94);
-  --scrollbar-thumb-border: rgba(5, 4, 10, 0.9);
-}
-html, body { height: 100%; }
-body { color: var(--foreground); background: var(--background); }
-a { text-decoration: none; }
-
 @keyframes pageFadeIn {
   from {
     opacity: 0;
@@ -124,7 +169,7 @@ a { text-decoration: none; }
   background: #000;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 400ms ease;
+  transition: opacity var(--duration-long) var(--ease-standard);
 }
 
 .page-transition-overlay-active {
