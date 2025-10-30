@@ -31,7 +31,7 @@ export function PostPageTransition({ resetKey, backHref, children }: PostPageTra
             <Link
               href={backHref}
               onClick={(event) => handleLinkClick(event, backHref)}
-              className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-500 transition-colors duration-200 hover:text-violet-200"
+              className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-500 transition-colors duration-base ease-standard hover:text-brand-200"
               tabIndex={isInteractive ? undefined : -1}
             >
               <span aria-hidden>←</span> Back to the cloud

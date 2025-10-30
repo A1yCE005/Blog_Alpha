@@ -817,7 +817,7 @@ function StormQuoteCard({
   const textSpanClasses = "storm-quote-body inline-block whitespace-pre-line select-none";
 
   const highlightedClasses = highlighted
-    ? "text-violet-300"
+    ? "text-brand-300"
     : depthActive
     ? "text-zinc-500/60 blur-[4px] opacity-[0.35] saturate-[0.4]"
     : "text-zinc-100";

@@ -55,7 +55,7 @@ function PaginationButton({
   "aria-label": ariaLabel,
 }: PaginationButtonProps) {
   const baseClassName =
-    "inline-flex items-center justify-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-zinc-200 transition-colors duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black hover:border-violet-400/60 hover:text-violet-200";
+    "inline-flex items-center justify-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-zinc-200 transition-colors duration-base ease-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black hover:border-brand-400/60 hover:text-brand-200";
 
   if (disabled) {
     return (
@@ -245,14 +245,14 @@ export function ArchivePageContent({
           <Link
             href="/?view=blog"
             onClick={(event) => handleLinkClick(event, "/?view=blog")}
-            className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-500 transition-colors duration-200 hover:text-violet-200"
+            className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.35em] text-zinc-500 transition-colors duration-base ease-standard hover:text-brand-200"
             tabIndex={isInteractive ? undefined : -1}
           >
             <span aria-hidden>←</span> Back to the cloud
           </Link>
 
           <header className="flex flex-col gap-3 text-left">
-            <p className="text-sm font-medium uppercase tracking-[0.3em] text-violet-300/80">The Journal</p>
+            <p className="text-sm font-medium uppercase tracking-[0.3em] text-brand-300/80">The Journal</p>
             <h1 className="text-3xl font-semibold text-zinc-50 sm:text-4xl">Archive</h1>
             <p className="max-w-2xl text-sm text-zinc-400 sm:text-base">
               Browse every post we&apos;ve published. Follow the full timeline of essays, signals, and experiments from the Letter Cloud studio.
@@ -269,10 +269,10 @@ export function ArchivePageContent({
                         type="button"
                         onClick={() => toggleTag(tag.name)}
                         disabled={!isInteractive}
-                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] transition-colors duration-base ease-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
                           isActive
-                            ? "border-violet-400/80 bg-violet-500/10 text-violet-200"
-                            : "border-white/10 text-zinc-400 hover:border-violet-400/60 hover:text-violet-200"
+                            ? "border-brand-400/80 bg-brand-500/10 text-brand-200"
+                            : "border-white/10 text-zinc-400 hover:border-brand-400/60 hover:text-brand-200"
                         } ${!isInteractive ? "cursor-not-allowed opacity-60" : ""}`}
                       >
                         <span>#{tag.name}</span>
@@ -285,7 +285,7 @@ export function ArchivePageContent({
                       type="button"
                       onClick={clearFilter}
                       disabled={!isInteractive}
-                      className={`inline-flex items-center rounded-full border border-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-zinc-500 transition-colors duration-200 hover:border-zinc-400/60 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+                      className={`inline-flex items-center rounded-full border border-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-zinc-500 transition-colors duration-base ease-standard hover:border-zinc-400/60 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
                         !isInteractive ? "cursor-not-allowed opacity-60" : ""
                       }`}
                     >

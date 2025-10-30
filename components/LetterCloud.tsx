@@ -1246,10 +1246,10 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
               <button
                 type="button"
                 onClick={handleEnterBlog}
-                className="pointer-events-auto group flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold tracking-[0.3em] text-zinc-200 backdrop-blur shadow-[0_30px_80px_-45px_rgba(167,139,250,0.55)] transition-transform duration-300 ease-out hover:-translate-y-0.5 hover:scale-[1.02] hover:border-violet-400/60 hover:shadow-[0_45px_120px_-50px_rgba(167,139,250,0.65)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                className="pointer-events-auto group flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold tracking-[0.3em] text-zinc-200 backdrop-blur shadow-[0_30px_80px_-45px_rgba(167,139,250,0.55)] transition-transform duration-base ease-emphasized hover:-translate-y-0.5 hover:scale-[1.02] hover:border-brand-400/60 hover:shadow-[0_45px_120px_-50px_rgba(167,139,250,0.65)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
                 CLICK TO ENTER
-                <span aria-hidden className="animate-pulse text-violet-300 transition-transform duration-300 group-hover:translate-x-1">⟶</span>
+                <span aria-hidden className="animate-pulse text-brand-300 transition-transform duration-base ease-standard group-hover:translate-x-1">⟶</span>
               </button>
             </div>
           )}

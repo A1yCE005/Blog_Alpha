@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import type { PostSummary } from "@/lib/posts";
+import { siteConfig } from "@/lib/site-config";
 import { PostCard } from "@/components/PostCard";
 import { usePageTransition } from "@/hooks/usePageTransition";
 
@@ -36,8 +37,8 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
         >
           <header className="flex flex-col gap-6 text-left">
             <div className="flex flex-col gap-3">
-              <p className="text-sm font-medium uppercase tracking-[0.3em] text-violet-300/80">The Journal</p>
-              <h2 className="text-3xl font-semibold text-zinc-50 sm:text-4xl">Lighthosue</h2>
+              <p className="text-sm font-medium uppercase tracking-[0.3em] text-brand-300/80">The Journal</p>
+              <h2 className="text-3xl font-semibold text-zinc-50 sm:text-4xl">{siteConfig.name}</h2>
               <p className="max-w-2xl text-sm text-zinc-400 sm:text-base">
                 Essays, signals, and experiments from the Letter Cloud studio. Click any post to keep the momentum of the particles going in your own practice.
               </p>
@@ -46,7 +47,7 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
               <Link
                 href="/archive"
                 onClick={(event) => handleLinkClick(event, "/archive")}
-                className="inline-flex items-center rounded-full border border-white/10 px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-zinc-200 transition-colors duration-200 hover:border-white/40 hover:text-white focus-visible:border-white/60 focus-visible:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/60"
+                className="inline-flex items-center rounded-full border border-white/10 px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-zinc-200 transition-colors duration-base ease-standard hover:border-white/40 hover:text-white focus-visible:border-white/60 focus-visible:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/60"
                 tabIndex={isInteractive ? undefined : -1}
               >
                 Archive
@@ -54,7 +55,7 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
               <Link
                 href="/storm"
                 onClick={(event) => handleLinkClick(event, "/storm")}
-                className="inline-flex items-center rounded-full border border-white/10 px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-zinc-200 transition-colors duration-200 hover:border-white/40 hover:text-white focus-visible:border-white/60 focus-visible:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/60"
+                className="inline-flex items-center rounded-full border border-white/10 px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-zinc-200 transition-colors duration-base ease-standard hover:border-white/40 hover:text-white focus-visible:border-white/60 focus-visible:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/60"
                 tabIndex={isInteractive ? undefined : -1}
               >
                 Storm
@@ -62,7 +63,7 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
               <Link
                 href="/about"
                 onClick={(event) => handleLinkClick(event, "/about")}
-                className="inline-flex items-center rounded-full border border-white/10 px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-zinc-200 transition-colors duration-200 hover:border-white/40 hover:text-white focus-visible:border-white/60 focus-visible:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/60"
+                className="inline-flex items-center rounded-full border border-white/10 px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-zinc-200 transition-colors duration-base ease-standard hover:border-white/40 hover:text-white focus-visible:border-white/60 focus-visible:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/60"
                 tabIndex={isInteractive ? undefined : -1}
               >
                 About

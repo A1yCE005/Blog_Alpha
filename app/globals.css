@@ -1,3 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --color-background: #05040a;
+  --color-foreground: #e5e7eb;
+  --color-foreground-muted: #a1a1aa;
+  --color-brand-50: #f5f3ff;
+  --color-brand-100: #ede9fe;
+  --color-brand-200: #ddd6fe;
+  --color-brand-300: #c4b5fd;
+  --color-brand-400: #a78bfa;
+  --color-brand-500: #8b5cf6;
+  --color-brand-600: #7c3aed;
+  --radius-sm: 0.75rem;
+  --radius-md: 1.25rem;
+  --radius-lg: 1.75rem;
+  --leading-snug: 1.35;
+  --leading-relaxed: 1.6;
+  --leading-loose: 1.75;
+  --duration-fast: 150ms;
+  --duration-base: 280ms;
+  --duration-slow: 450ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --space-gutter: clamp(1.5rem, 5vw, 2.75rem);
+  --space-section-y: clamp(3.5rem, 9vw, 6.5rem);
+  --space-prose-pre: 1.25rem;
+  --font-sans: "Manrope", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --scrollbar-track: rgba(10, 9, 16, 0.85);
+  --scrollbar-thumb: rgba(58, 57, 76, 0.82);
+  --scrollbar-thumb-hover: rgba(82, 80, 105, 0.88);
+  --scrollbar-thumb-active: rgba(110, 108, 140, 0.94);
+  --scrollbar-thumb-border: rgba(5, 4, 10, 0.9);
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    height: 100%;
+    min-height: 100%;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100%;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "liga" 1, "calt" 1, "kern" 1;
+    font-kerning: normal;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    margin: 0;
+  }
+
+  code,
+  pre {
+    font-family: var(--font-mono);
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  img,
+  svg,
+  video,
+  canvas,
+  audio {
+    display: block;
+    max-width: 100%;
+  }
+}
+
 .page-content pre code.hljs,
 article pre code.hljs,
 pre code.hljs {
@@ -57,29 +144,14 @@ article pre {
 .storm-quote-body {
   display: inline-block;
   padding-inline: clamp(1.4rem, 5vw, 3.25rem);
-  transition: color 320ms ease, filter 320ms ease, opacity 320ms ease;
+  transition: color var(--duration-base) var(--ease-standard),
+    filter var(--duration-base) var(--ease-standard),
+    opacity var(--duration-base) var(--ease-standard);
 }
 
 article pre::-webkit-scrollbar {
   height: 10px;
 }
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-:root {
-  --background: #000;
-  --foreground: #e5e7eb;
-  --scrollbar-track: rgba(10, 9, 16, 0.85);
-  --scrollbar-thumb: rgba(58, 57, 76, 0.82);
-  --scrollbar-thumb-hover: rgba(82, 80, 105, 0.88);
-  --scrollbar-thumb-active: rgba(110, 108, 140, 0.94);
-  --scrollbar-thumb-border: rgba(5, 4, 10, 0.9);
-}
-html, body { height: 100%; }
-body { color: var(--foreground); background: var(--background); }
-a { text-decoration: none; }
 
 @keyframes pageFadeIn {
   from {
