@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getAllPosts, getPostBySlug } from "@/lib/posts";
+import { siteConfig } from "@/lib/site-config";
 import { PostPageContent } from "@/components/PostPageContent";
 
 type PageProps = {
@@ -23,7 +24,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
   }
   return {
-    title: `${post.title} · Lighthouse`,
+    title: `${post.title} · ${siteConfig.name}`,
     description: post.excerpt,
   };
 }

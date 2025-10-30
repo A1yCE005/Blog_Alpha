@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 import { BlogMain } from "@/components/BlogMain";
 import type { PostSummary } from "@/lib/posts";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { siteConfig } from "@/lib/site-config";
 
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
 const CONFIG = {
-  word: "Lighthouse",
+  word: siteConfig.name,
   fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto",
   fontWeight: 800,
 
@@ -54,7 +55,7 @@ const CONFIG = {
   funnelJitterPx: 6,       // 汇聚时的轻微抖散
 
   // 待机循环
-  idleWords: ["Lighthouse", "Halo","⌘Q","Storm"],
+  idleWords: [siteConfig.name, "Halo", "⌘Q", "Storm"],
   idleHoldMs: 4200,
   idleScatterMs: 1800,
   idleGatherDelayMs: 520,

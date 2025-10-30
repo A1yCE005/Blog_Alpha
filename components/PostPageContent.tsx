@@ -8,6 +8,7 @@ import type { Options as RehypeHighlightOptions } from "rehype-highlight";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import type { PluggableList } from "unified";
 import bash from "highlight.js/lib/languages/bash";
 import javascript from "highlight.js/lib/languages/javascript";
 import json from "highlight.js/lib/languages/json";
@@ -15,6 +16,8 @@ import python from "highlight.js/lib/languages/python";
 import typescript from "highlight.js/lib/languages/typescript";
 
 import type { PostContent } from "@/lib/posts";
+import { siteConfig } from "@/lib/site-config";
+import { Prose } from "@/components/Prose";
 import { PostPageTransition } from "./PostPageTransition";
 
 const KATEX_MATHML_TAGS = [
@@ -143,63 +146,14 @@ const markdownSanitizeSchema = {
 };
 
 const markdownComponents: Components = {
-  h1: ({ children }) => (
-    <h1 className="text-4xl font-semibold tracking-tight text-zinc-100 sm:text-5xl">{children}</h1>
-  ),
-  h2: ({ children }) => (
-    <h2 className="mt-12 text-3xl font-semibold tracking-tight text-zinc-100 sm:text-4xl">{children}</h2>
-  ),
-  h3: ({ children }) => (
-    <h3 className="mt-8 text-2xl font-semibold tracking-tight text-zinc-100">{children}</h3>
-  ),
-  p: ({ children }) => (
-    <p className="leading-relaxed text-zinc-300">{children}</p>
-  ),
-  a: ({ children, href }) => (
-    <a
-      href={href}
-      className="font-medium text-violet-300 underline decoration-violet-300/60 underline-offset-4 transition-colors duration-200 hover:text-violet-200"
-    >
-      {children}
-    </a>
-  ),
-  ul: ({ children }) => (
-    <ul className="list-disc space-y-3 pl-6 text-zinc-300">{children}</ul>
-  ),
-  ol: ({ children }) => (
-    <ol className="list-decimal space-y-3 pl-6 text-zinc-300">{children}</ol>
-  ),
-  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-  blockquote: ({ children }) => (
-    <blockquote className="border-l-4 border-violet-400/40 pl-4 text-lg italic text-zinc-200">{children}</blockquote>
-  ),
   img: ({ src, alt }) => (
     // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src ?? ""}
-      alt={alt ?? ""}
-      className="mx-auto my-8 w-full max-w-3xl rounded-2xl border border-white/10 bg-zinc-900/40 object-contain"
-      loading="lazy"
-    />
+    <img src={src ?? ""} alt={alt ?? ""} loading="lazy" />
   ),
-  table: ({ children }) => (
-    <div className="my-8 overflow-x-auto rounded-2xl border border-white/10">
-      <table className="w-full border-collapse text-left text-sm text-zinc-200">{children}</table>
-    </div>
-  ),
-  th: ({ children }) => (
-    <th className="bg-white/5 px-4 py-3 font-semibold uppercase tracking-[0.2em] text-zinc-100">
-      {children}
-    </th>
-  ),
-  td: ({ children }) => <td className="px-4 py-3 text-zinc-300">{children}</td>,
   code: ({ inline, className, children, ...props }: any) => {
     if (inline) {
       return (
-        <code
-          className={`rounded bg-zinc-800/70 px-1.5 py-1 text-sm text-violet-200 ${className ?? ""}`.trim()}
-          {...props}
-        >
+        <code className={className ?? ""} {...props}>
           {children}
         </code>
       );
@@ -221,7 +175,7 @@ const markdownComponents: Components = {
 
     return (
       <pre
-        className={`overflow-x-auto rounded-2xl bg-zinc-900/80 px-5 py-5 ${className ?? ""}`.trim()}
+        className={`overflow-x-auto rounded-lg border border-border/60 bg-surface px-5 py-5 ${className ?? ""}`.trim()}
         data-language={language}
         style={{ padding: "1.25rem", ...(style ?? {}) }}
         {...props}
@@ -230,8 +184,19 @@ const markdownComponents: Components = {
       </pre>
     );
   },
-  hr: () => <hr className="my-12 border-t border-white/10" />,
+  hr: () => <hr className="my-12 border-t border-border/60" />,
 };
+
+const remarkPlugins: PluggableList = siteConfig.features.math ? [remarkGfm, remarkMath] : [remarkGfm];
+
+const rehypePlugins: PluggableList = siteConfig.features.math
+  ? [
+      rehypeRaw,
+      rehypeKatex,
+      [rehypeHighlight, highlightOptions],
+      [rehypeSanitize, markdownSanitizeSchema],
+    ]
+  : [rehypeRaw, [rehypeHighlight, highlightOptions], [rehypeSanitize, markdownSanitizeSchema]];
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "long",
@@ -251,19 +216,19 @@ export function PostPageContent({ post, backHref = "/?view=blog" }: PostPageCont
   return (
     <PostPageTransition backHref={backHref} resetKey={resetKey}>
       <div className="flex flex-col gap-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.35em] text-violet-300/80">
+        <p className="text-xs font-semibold uppercase tracking-[0.35em] text-brand/80">
           {dateFormatter.format(new Date(post.date))}
         </p>
-        <h1 className="text-4xl font-semibold tracking-tight text-zinc-50 sm:text-5xl">
+        <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
           {post.title}
         </h1>
-        <p className="text-sm uppercase tracking-[0.25em] text-zinc-500">{post.readingTime}</p>
+        <p className="text-sm uppercase tracking-[0.25em] text-muted">{post.readingTime}</p>
         {post.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.2em] text-zinc-500">
+          <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.2em] text-muted">
             {post.tags.map((tag) => (
               <span
                 key={tag}
-                className="rounded-full border border-white/10 px-3 py-1 text-[0.7rem] font-semibold text-zinc-300"
+                className="rounded-full border border-border/60 px-3 py-1 text-[0.7rem] font-semibold text-muted"
               >
                 {tag}
               </span>
@@ -272,20 +237,11 @@ export function PostPageContent({ post, backHref = "/?view=blog" }: PostPageCont
         )}
       </div>
 
-      <article className="mt-12 flex flex-col gap-6 text-base text-zinc-200">
-        <ReactMarkdown
-          components={markdownComponents}
-          remarkPlugins={[remarkGfm, remarkMath]}
-          rehypePlugins={[
-            rehypeRaw,
-            rehypeKatex,
-            [rehypeHighlight, highlightOptions],
-            [rehypeSanitize, markdownSanitizeSchema],
-          ]}
-        >
+      <Prose className="mt-12">
+        <ReactMarkdown components={markdownComponents} remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins}>
           {post.content}
         </ReactMarkdown>
-      </article>
+      </Prose>
     </PostPageTransition>
   );
 }
