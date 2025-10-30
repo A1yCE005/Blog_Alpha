@@ -4,9 +4,10 @@ import { cache } from "react";
 
 import { PostPageContent } from "@/components/PostPageContent";
 import { getPostBySlug } from "@/lib/posts";
+import { siteConfig } from "@/lib/site-config";
 
 const ABOUT_POST_SLUG = "about/about";
-const PAGE_TITLE = "About · Lighthouse";
+const PAGE_TITLE = `About · ${siteConfig.name}`;
 
 const loadAboutPost = cache(async () => {
   const post = await getPostBySlug(ABOUT_POST_SLUG);
