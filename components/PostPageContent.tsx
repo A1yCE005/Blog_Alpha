@@ -236,7 +236,7 @@ export function PostPageContent({ post, backHref = "/?view=blog" }: PostPageCont
         )}
       </div>
 
-      <Prose as="article" className="mt-12">
+      <Prose className="mt-12">
         <ReactMarkdown components={markdownComponents} remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins}>
           {post.content}
         </ReactMarkdown>
