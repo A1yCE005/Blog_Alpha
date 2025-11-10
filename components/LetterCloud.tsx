@@ -1209,10 +1209,10 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   }, [hasEnteredBlog, router]);
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100">
+    <div className="min-h-screen bg-black pb-[env(safe-area-inset-bottom)] text-zinc-100 [@supports(height:100dvh)]:min-h-[100dvh]">
       {!heroRetired && (
         <section
-          className={`relative h-[100svh] w-full overflow-hidden transition-all duration-700 ease-out ${
+          className={`relative h-screen w-full overflow-hidden pb-[env(safe-area-inset-bottom)] transition-all duration-700 ease-out [@supports(height:100dvh)]:h-[100dvh] ${
             hasEnteredBlog ? "scale-[0.98] opacity-40 blur-[1.5px]" : ""
           }`}
         >
