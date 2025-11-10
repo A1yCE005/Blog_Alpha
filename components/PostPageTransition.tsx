@@ -22,11 +22,12 @@ export function PostPageTransition({ resetKey, backHref, children }: PostPageTra
         className={`page-transition-overlay ${isTransitioning ? "page-transition-overlay-active" : ""}`}
       />
       <div
-        className={`relative min-h-screen bg-black page-fade-in transition-opacity duration-300 ease-out ${
+        className={`relative overflow-y-auto bg-black page-fade-in transition-opacity duration-300 ease-out ${
           isTransitioning ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
+        style={{ height: `calc(var(--viewport-height) - 5rem - env(safe-area-inset-bottom,0px))` }}
       >
-        <div className="mx-auto w-full max-w-3xl px-6 py-20 sm:px-10">
+        <div className="mx-auto w-full max-w-3xl px-6 pt-20 pb-[calc(5rem+env(safe-area-inset-bottom,0))] sm:px-10">
           <div className="mb-10">
             <Link
               href={backHref}
