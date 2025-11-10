@@ -1209,12 +1209,17 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   }, [hasEnteredBlog, router]);
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100">
+    <div className="min-h-[100dvh] min-h-viewport bg-black text-zinc-100">
       {!heroRetired && (
         <section
-          className={`relative h-[100svh] w-full overflow-hidden transition-all duration-700 ease-out ${
+          className={`relative h-viewport max-h-viewport w-full overflow-hidden pb-[env(safe-area-inset-bottom,0)] transition-all duration-700 ease-out ${
             hasEnteredBlog ? "scale-[0.98] opacity-40 blur-[1.5px]" : ""
           }`}
+          style={{
+            height: `calc(var(--viewport-height) - env(safe-area-inset-bottom,0px))`,
+            maxHeight: `calc(var(--viewport-height) - env(safe-area-inset-bottom,0px))`,
+            minHeight: `calc(var(--viewport-height) - env(safe-area-inset-bottom,0px))`
+          }}
         >
           <div className="absolute inset-0">
             <WordParticles

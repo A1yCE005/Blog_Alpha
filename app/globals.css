@@ -76,6 +76,32 @@ article pre::-webkit-scrollbar {
   --scrollbar-thumb-hover: rgba(82, 80, 105, 0.88);
   --scrollbar-thumb-active: rgba(110, 108, 140, 0.94);
   --scrollbar-thumb-border: rgba(5, 4, 10, 0.9);
+  --vh: 1vh;
+  --viewport-height: 100vh;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --viewport-height: 100dvh;
+  }
+}
+
+@supports not (height: 100dvh) {
+  :root {
+    --viewport-height: calc(var(--vh, 1vh) * 100);
+  }
+}
+
+.min-h-viewport {
+  min-height: var(--viewport-height);
+}
+
+.h-viewport {
+  height: var(--viewport-height);
+}
+
+.max-h-viewport {
+  max-height: var(--viewport-height);
 }
 html, body { height: 100%; }
 body { color: var(--foreground); background: var(--background); }
@@ -119,7 +145,8 @@ a { text-decoration: none; }
 
 .page-transition-overlay {
   position: fixed;
-  inset: 0;
+  inset: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0)
+    env(safe-area-inset-left, 0);
   z-index: 30;
   background: #000;
   opacity: 0;
