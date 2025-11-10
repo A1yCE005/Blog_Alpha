@@ -23,7 +23,7 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
       />
       <div
         aria-hidden={!visible}
-        className={`relative z-20 min-h-[100dvh] min-h-viewport overflow-y-auto bg-gradient-to-b from-transparent via-black/60 to-black transition-opacity duration-300 ease-out ${
+        className={`fixed inset-0 z-20 min-h-[100dvh] min-h-viewport overflow-y-auto bg-gradient-to-b from-transparent via-black/60 to-black transition-opacity duration-300 ease-out ${
           visible ? "page-fade-in" : ""
         } ${
           isInteractive ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
