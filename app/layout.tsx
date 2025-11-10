@@ -6,7 +6,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: "Lighthosue",
-  description: "Midjourney-style letter cloud hero animation",
+  description: "Lighthouse in the Storm",
   icons: {
     icon: "/image/icon.svg",
     shortcut: "/image/icon.svg",

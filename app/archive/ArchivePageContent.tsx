@@ -252,10 +252,9 @@ export function ArchivePageContent({
           </Link>
 
           <header className="flex flex-col gap-3 text-left">
-            <p className="text-sm font-medium uppercase tracking-[0.3em] text-violet-300/80">The Journal</p>
             <h1 className="text-3xl font-semibold text-zinc-50 sm:text-4xl">Archive</h1>
             <p className="max-w-2xl text-sm text-zinc-400 sm:text-base">
-              Browse every post we&apos;ve published. Follow the full timeline of essays, signals, and experiments from the Letter Cloud studio.
+              No one can own eternal...except here.
             </p>
             {hasFilters && (
               <div className="mt-2 flex flex-col gap-2">
