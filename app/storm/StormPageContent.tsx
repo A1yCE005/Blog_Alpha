@@ -14,6 +14,7 @@ import {
 
 import { usePageTransition } from "@/hooks/usePageTransition";
 import type { StormQuote } from "@/lib/storm";
+import { viewportHeightStyle, viewportMinHeightStyle } from "@/lib/viewport";
 
 const BATCH_SIZE = 12;
 const INITIAL_BATCHES = 6;
@@ -696,12 +697,16 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
         }`}
       />
       <div
-        className={`relative min-h-screen bg-black/80 backdrop-blur-2xl supports-[backdrop-filter:blur(0)]:backdrop-blur-3xl page-fade-in transition-opacity duration-300 ease-out ${
+        className={`relative bg-black/80 backdrop-blur-2xl supports-[backdrop-filter:blur(0)]:backdrop-blur-3xl page-fade-in transition-opacity duration-300 ease-out ${
           isTransitioning ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
         onClick={handlePageClick}
+        style={viewportMinHeightStyle}
       >
-        <div className="mx-auto flex h-screen w-full max-w-4xl flex-col px-6 sm:px-12">
+        <div
+          className="mx-auto flex w-full max-w-4xl flex-col px-6 sm:px-12"
+          style={viewportHeightStyle}
+        >
           {pool.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-white/10 bg-zinc-950/40 p-16 text-center text-sm text-zinc-400">
               No storm quotes available yet. Add entries to
@@ -726,7 +731,7 @@ export function StormPageContent({ quotes }: StormPageContentProps) {
               className="storm-scroll-container relative flex h-full flex-col overflow-y-auto px-2 sm:px-4"
               tabIndex={isInteractive ? 0 : -1}
             >
-              <div className="flex flex-col items-center gap-14 py-16 sm:gap-20">
+              <div className="flex flex-col items-center gap-14 pt-16 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] sm:gap-20">
                 {items.map((item) => (
                   <StormQuoteCard
                     key={item.id}

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { BlogMain } from "@/components/BlogMain";
 import type { PostSummary } from "@/lib/posts";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { viewportHeightStyle, viewportMinHeightStyle } from "@/lib/viewport";
 
 /** 全局参数（本地 /tuner 可通过 BroadcastChannel 覆盖其中多数） */
 const CONFIG = {
@@ -1209,12 +1210,13 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   }, [hasEnteredBlog, router]);
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100">
+    <div className="bg-black text-zinc-100" style={viewportMinHeightStyle}>
       {!heroRetired && (
         <section
-          className={`relative h-[100svh] w-full overflow-hidden transition-all duration-700 ease-out ${
+          className={`relative h-screen max-h-screen w-full overflow-hidden pb-[env(safe-area-inset-bottom,0px)] transition-all duration-700 ease-out ${
             hasEnteredBlog ? "scale-[0.98] opacity-40 blur-[1.5px]" : ""
           }`}
+          style={viewportHeightStyle}
         >
           <div className="absolute inset-0">
             <WordParticles

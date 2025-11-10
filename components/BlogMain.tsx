@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { PostSummary } from "@/lib/posts";
 import { PostCard } from "@/components/PostCard";
 import { usePageTransition } from "@/hooks/usePageTransition";
+import { viewportMinHeightStyle } from "@/lib/viewport";
 
 type BlogMainProps = {
   visible: boolean;
@@ -23,16 +24,18 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
       />
       <div
         aria-hidden={!visible}
-        className={`fixed inset-0 z-20 overflow-y-auto bg-gradient-to-b from-transparent via-black/60 to-black transition-opacity duration-300 ease-out ${
+        className={`relative z-20 bg-gradient-to-b from-transparent via-black/60 to-black pb-[calc(4rem+env(safe-area-inset-bottom,0px))] transition-opacity duration-300 ease-out ${
           visible ? "page-fade-in" : ""
         } ${
           isInteractive ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
+        style={viewportMinHeightStyle}
       >
         <div
-          className={`mx-auto flex min-h-full w-full max-w-4xl flex-col gap-10 px-6 py-16 transition-transform duration-300 ease-out sm:px-10 ${
+          className={`mx-auto flex w-full max-w-4xl flex-col gap-10 px-6 pt-16 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] transition-transform duration-300 ease-out sm:px-10 ${
             isInteractive ? "translate-y-0" : "translate-y-8"
           }`}
+          style={viewportMinHeightStyle}
         >
           <header className="flex flex-col gap-6 text-left">
             <div className="flex flex-col gap-3">

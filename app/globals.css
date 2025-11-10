@@ -76,6 +76,7 @@ article pre::-webkit-scrollbar {
   --scrollbar-thumb-hover: rgba(82, 80, 105, 0.88);
   --scrollbar-thumb-active: rgba(110, 108, 140, 0.94);
   --scrollbar-thumb-border: rgba(5, 4, 10, 0.9);
+  --viewport-height: 100vh;
 }
 html, body { height: 100%; }
 body { color: var(--foreground); background: var(--background); }
@@ -120,6 +121,8 @@ a { text-decoration: none; }
 .page-transition-overlay {
   position: fixed;
   inset: 0;
+  inset: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
+    env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
   z-index: 30;
   background: #000;
   opacity: 0;
