@@ -76,6 +76,7 @@ article pre::-webkit-scrollbar {
   --scrollbar-thumb-hover: rgba(82, 80, 105, 0.88);
   --scrollbar-thumb-active: rgba(110, 108, 140, 0.94);
   --scrollbar-thumb-border: rgba(5, 4, 10, 0.9);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
 }
 html, body { height: 100%; }
 body { color: var(--foreground); background: var(--background); }
@@ -129,6 +130,16 @@ a { text-decoration: none; }
 
 .page-transition-overlay-active {
   opacity: 1;
+}
+
+.pb-safe {
+  padding-bottom: var(--safe-area-inset-bottom);
+}
+
+@supports (padding: constant(safe-area-inset-bottom)) {
+  :root {
+    --safe-area-inset-bottom: constant(safe-area-inset-bottom);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
