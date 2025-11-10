@@ -22,7 +22,7 @@ export function PostPageTransition({ resetKey, backHref, children }: PostPageTra
         className={`page-transition-overlay ${isTransitioning ? "page-transition-overlay-active" : ""}`}
       />
       <div
-        className={`relative min-h-screen bg-black page-fade-in transition-opacity duration-300 ease-out ${
+        className={`relative min-h-viewport bg-black pb-safe page-fade-in transition-opacity duration-300 ease-out ${
           isTransitioning ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
       >

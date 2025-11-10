@@ -76,6 +76,7 @@ article pre::-webkit-scrollbar {
   --scrollbar-thumb-hover: rgba(82, 80, 105, 0.88);
   --scrollbar-thumb-active: rgba(110, 108, 140, 0.94);
   --scrollbar-thumb-border: rgba(5, 4, 10, 0.9);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
 }
 html, body { height: 100%; }
 body { color: var(--foreground); background: var(--background); }
@@ -125,6 +126,7 @@ a { text-decoration: none; }
   opacity: 0;
   pointer-events: none;
   transition: opacity 400ms ease;
+  padding-bottom: var(--safe-area-inset-bottom);
 }
 
 .page-transition-overlay-active {
@@ -147,4 +149,28 @@ a { text-decoration: none; }
   .page-transition-overlay {
     transition: none;
   }
+}
+
+.min-h-viewport {
+  min-height: calc(100vh - var(--safe-area-inset-bottom));
+}
+
+@supports (min-height: 100dvh) {
+  .min-h-viewport {
+    min-height: calc(100dvh - var(--safe-area-inset-bottom));
+  }
+}
+
+.h-viewport {
+  height: calc(100vh - var(--safe-area-inset-bottom));
+}
+
+@supports (height: 100dvh) {
+  .h-viewport {
+    height: calc(100dvh - var(--safe-area-inset-bottom));
+  }
+}
+
+.pb-safe {
+  padding-bottom: var(--safe-area-inset-bottom);
 }

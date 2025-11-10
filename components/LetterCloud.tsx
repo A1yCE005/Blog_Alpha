@@ -1209,10 +1209,10 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
   }, [hasEnteredBlog, router]);
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100">
+    <div className="min-h-viewport bg-black pb-safe text-zinc-100">
       {!heroRetired && (
         <section
-          className={`relative h-[100svh] w-full overflow-hidden transition-all duration-700 ease-out ${
+          className={`relative min-h-viewport w-full overflow-hidden transition-all duration-700 ease-out ${
             hasEnteredBlog ? "scale-[0.98] opacity-40 blur-[1.5px]" : ""
           }`}
         >
