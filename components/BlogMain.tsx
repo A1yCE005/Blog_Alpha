@@ -23,12 +23,16 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
       />
       <div
         aria-hidden={!visible}
-        className={`relative z-20 overflow-y-auto bg-gradient-to-b from-transparent via-black/60 to-black transition-opacity duration-300 ease-out ${
+        className={`fixed inset-x-0 z-20 overflow-y-auto bg-gradient-to-b from-transparent via-black/60 to-black transition-opacity duration-300 ease-out ${
           visible ? "page-fade-in" : ""
         } ${
           isInteractive ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
-        style={{ height: `calc(var(--viewport-height) - 4rem - env(safe-area-inset-bottom,0px))` }}
+        style={{
+          top: "calc(env(safe-area-inset-top, 0px) + 4rem)",
+          height: `calc(var(--viewport-height) - 4rem - env(safe-area-inset-bottom,0px))`,
+          maxHeight: `calc(var(--viewport-height) - 4rem - env(safe-area-inset-bottom,0px))`,
+        }}
       >
         <div
           className={`mx-auto flex min-h-full w-full max-w-4xl flex-col gap-10 px-6 pt-16 pb-[calc(4rem+env(safe-area-inset-bottom,0))] transition-transform duration-300 ease-out sm:px-10 ${
