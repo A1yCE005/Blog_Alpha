@@ -23,16 +23,18 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
       />
       <div
         aria-hidden={!visible}
-        className={`relative z-20 min-h-screen bg-gradient-to-b from-transparent via-black/60 to-black pb-[calc(4rem+env(safe-area-inset-bottom))] transition-opacity duration-300 ease-out ${
+        className={`relative z-20 bg-gradient-to-b from-transparent via-black/60 to-black pb-[calc(4rem+env(safe-area-inset-bottom))] transition-opacity duration-300 ease-out ${
           visible ? "page-fade-in" : ""
         } ${
           isInteractive ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
+        style={{ minHeight: "var(--app-viewport-height, 100vh)" }}
       >
         <div
-          className={`mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-10 px-6 pt-16 pb-[calc(4rem+env(safe-area-inset-bottom))] transition-transform duration-300 ease-out sm:px-10 ${
+          className={`mx-auto flex w-full max-w-4xl flex-col gap-10 px-6 pt-16 pb-[calc(4rem+env(safe-area-inset-bottom))] transition-transform duration-300 ease-out sm:px-10 ${
             isInteractive ? "translate-y-0" : "translate-y-8"
           }`}
+          style={{ minHeight: "var(--app-viewport-height, 100vh)" }}
         >
           <header className="flex flex-col gap-6 text-left">
             <div className="flex flex-col gap-3">

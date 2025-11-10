@@ -4,6 +4,8 @@ import "katex/dist/katex.min.css";
 import type { Metadata } from "next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
+import { ViewportHeightUpdater } from "@/components/ViewportHeightUpdater";
+
 export const metadata: Metadata = {
   title: "Lighthosue",
   description: "Lighthouse in the Storm",
@@ -20,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </head>
       <body>
+        <ViewportHeightUpdater />
         {children}
         <SpeedInsights />
       </body>
