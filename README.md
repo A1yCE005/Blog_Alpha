@@ -1,12 +1,12 @@
-# Lighthouse Letter Cloud Blog
+# Lighthouse Blog
 
-A Next.js 14 blog theme with a Midjourney-inspired letter-cloud hero. Particle
+A Next.js 14 blog theme with a Midjourney-inspired Lighthouse word-cloud hero. Particle
 animation, cinematic transitions, and markdown-first authoring are bundled into
 one project so you can drop in content and deploy a polished studio journal.
 
 ## Highlights
 
-- **Letter Cloud hero** – Animated word particles that respond to pointer
+- **Lighthouse hero** – Animated word particles that respond to pointer
   movement and cycle through idle states. Tuning knobs live in
   [`components/LetterCloud.tsx`](components/LetterCloud.tsx) (`CONFIG`).
 - **Blog-first UX** – Surface the five most recent posts on the home view, slide
@@ -47,7 +47,7 @@ The project targets Node.js 18.17+ (Next.js 14 baseline). Use `pnpm build` or
 
 ```
 app/                Route handlers & pages (App Router)
-  page.tsx          Home view – letter cloud + recent posts
+  page.tsx          Home view – Lighthouse hero + recent posts
   archive/          Paginated archive with tag filters
   posts/[slug]/     Individual post pages
   storm/            Infinite quote wall

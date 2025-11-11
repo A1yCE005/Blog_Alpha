@@ -38,7 +38,7 @@ function getTopTags(posts: PostSummary[], limit = 5): TagSummary[] {
 export const metadata: Metadata = {
   title: "Archive · Lighthouse",
   description:
-    "Browse every post in the Letter Cloud blog archive. Discover essays, signals, and experiments from the studio's history.",
+    "Browse every post in the Lighthouse archive. Discover essays, signals, and experiments from the studio's history.",
 };
 
 type PageProps = {

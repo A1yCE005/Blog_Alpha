@@ -5,7 +5,7 @@ tags:
   - Design
   - Motion
   - Case Study
-excerpt: "Principles for crafting interfaces that feel weightless yet grounded, inspired by the physics-driven hero of Letter Cloud."
+excerpt: "Principles for crafting interfaces that feel weightless yet grounded, inspired by the physics-driven hero of Lighthouse."
 ---
 
 Watching the hero animation break apart is a reminder that motion design is choreography, not decoration. Every particle remembers where it came from, how quickly it should travel, and the force that guides it back toward the word. The result is an interface that inhales and exhales instead of blinking from state to state.

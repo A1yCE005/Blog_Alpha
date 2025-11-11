@@ -5,10 +5,10 @@ tags:
   - Workflow
   - AI
   - Process
-excerpt: "Behind the scenes of Letter Cloud Blog's ambient writing workflow—combining sensory triggers, low-friction note capture, and weekly synthesis rituals to keep ideas flowing."
+excerpt: "Behind the scenes of Lighthouse's ambient writing workflow—combining sensory triggers, low-friction note capture, and weekly synthesis rituals to keep ideas flowing."
 ---
 
-When the studio lights dim and the letter cloud fades to embers, Lighthouse—the name we have given our ambient writing rig—keeps listening. A mic on the shelf records throwaway comments, the tablet on the coffee table pulls snippets from articles, and the automation stack tidies everything into a nightly digest. By morning, the inbox feels less like a blank page and more like a conversation waiting to continue.
+When the studio lights dim and the Lighthouse beacon fades to embers, Lighthouse—the name we have given our ambient writing rig—keeps listening. A mic on the shelf records throwaway comments, the tablet on the coffee table pulls snippets from articles, and the automation stack tidies everything into a nightly digest. By morning, the inbox feels less like a blank page and more like a conversation waiting to continue.
 
 Our routine is built on three anchors. First, sensory triggers: a specific playlist cues the transition into note-taking mode, and the smell of cedar oil anchors the ritual in the body. Second, ruthless accessibility: every capture point is single tap or single sentence, whether that is a voice memo, a typed fragment, or a photo of a whiteboard. Finally, a weekly synthesis session where Lighthouse summarizes, we annotate, and the two perspectives blend into a draft.
 

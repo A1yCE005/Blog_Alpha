@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
-  title: "Lighthosue",
+  title: "Lighthouse",
   description: "Lighthouse in the Storm",
   icons: {
     icon: "/image/icon.svg",
