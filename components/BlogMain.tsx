@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import type { PostSummary } from "@/lib/posts";
+import { FeaturedPostCard } from "@/components/FeaturedPostCard";
 import { PostCard } from "@/components/PostCard";
 import { usePageTransition } from "@/hooks/usePageTransition";
 
@@ -14,6 +15,8 @@ type BlogMainProps = {
 export function BlogMain({ visible, posts }: BlogMainProps) {
   const { isTransitioning, handleLinkClick } = usePageTransition("home");
   const isInteractive = visible && !isTransitioning;
+  const [featuredPost, ...restPosts] = posts;
+  const recentPosts = restPosts.slice(0, 5);
 
   return (
     <>
@@ -70,17 +73,49 @@ export function BlogMain({ visible, posts }: BlogMainProps) {
             </nav>
           </header>
 
-          {posts.length > 0 ? (
-            <div className="flex flex-col gap-6">
-              {posts.map((post) => (
-                <PostCard
-                  key={post.slug}
-                  post={post}
-                  href={`/posts/${post.slug}`}
-                  onClick={(event) => handleLinkClick(event, `/posts/${post.slug}`)}
-                  tabIndex={isInteractive ? undefined : -1}
-                />
-              ))}
+          {featuredPost ? (
+            <div className="flex flex-col gap-10">
+              <FeaturedPostCard
+                post={featuredPost}
+                href={`/posts/${featuredPost.slug}`}
+                onClick={(event) => handleLinkClick(event, `/posts/${featuredPost.slug}`)}
+                tabIndex={isInteractive ? undefined : -1}
+              />
+
+              {recentPosts.length > 0 && (
+                <section className="flex flex-col gap-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-300/80">
+                        Recent
+                      </span>
+                      <h3 className="text-2xl font-semibold text-zinc-50 sm:text-3xl">
+                        Fresh from the journal
+                      </h3>
+                    </div>
+                    <Link
+                      href="/archive"
+                      onClick={(event) => handleLinkClick(event, "/archive")}
+                      className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-zinc-200 transition-colors duration-200 hover:border-white/40 hover:text-white focus-visible:border-white/60 focus-visible:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/60"
+                      tabIndex={isInteractive ? undefined : -1}
+                    >
+                      View all
+                    </Link>
+                  </div>
+
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    {recentPosts.map((post) => (
+                      <PostCard
+                        key={post.slug}
+                        post={post}
+                        href={`/posts/${post.slug}`}
+                        onClick={(event) => handleLinkClick(event, `/posts/${post.slug}`)}
+                        tabIndex={isInteractive ? undefined : -1}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 bg-zinc-950/50 p-12 text-center text-sm text-zinc-400">
