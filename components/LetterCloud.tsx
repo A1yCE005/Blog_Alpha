@@ -1113,11 +1113,16 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
 /** 全屏首页：首轮抛撒→汇聚 */
 type FullscreenHomeProps = {
-  posts: PostSummary[];
+  headlinePost: PostSummary | null;
+  recentPosts: PostSummary[];
   initialBlogView?: boolean;
 };
 
-export default function FullscreenHome({ posts, initialBlogView = false }: FullscreenHomeProps) {
+export default function FullscreenHome({
+  headlinePost,
+  recentPosts,
+  initialBlogView = false,
+}: FullscreenHomeProps) {
   const [word, setWord] = React.useState(CONFIG.word);
   const [gap, setGap] = React.useState(CONFIG.sampleGap);
   const [letterSpacing, setLetterSpacing] = React.useState(CONFIG.letterSpacing);
@@ -1255,7 +1260,11 @@ export default function FullscreenHome({ posts, initialBlogView = false }: Fulls
           )}
         </section>
       )}
-      <BlogMain visible={blogVisible} posts={posts} />
+      <BlogMain
+        visible={blogVisible}
+        headlinePost={headlinePost}
+        recentPosts={recentPosts}
+      />
     </div>
   );
 }
