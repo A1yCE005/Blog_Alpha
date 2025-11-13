@@ -1113,13 +1113,13 @@ const WordParticles = React.forwardRef<WordParticlesHandle, WPProps>(function Wo
 
 /** 全屏首页：首轮抛撒→汇聚 */
 type FullscreenHomeProps = {
-  headlinePost: PostSummary | null;
+  featuredPost: PostSummary | null;
   recentPosts: PostSummary[];
   initialBlogView?: boolean;
 };
 
 export default function FullscreenHome({
-  headlinePost,
+  featuredPost,
   recentPosts,
   initialBlogView = false,
 }: FullscreenHomeProps) {
@@ -1262,7 +1262,7 @@ export default function FullscreenHome({
       )}
       <BlogMain
         visible={blogVisible}
-        headlinePost={headlinePost}
+        featuredPost={featuredPost}
         recentPosts={recentPosts}
       />
     </div>

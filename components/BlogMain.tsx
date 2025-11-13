@@ -15,7 +15,7 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 
 type BlogMainProps = {
   visible: boolean;
-  headlinePost: PostSummary | null;
+  featuredPost: PostSummary | null;
   recentPosts: PostSummary[];
 };
 
@@ -25,7 +25,7 @@ type PostLinkProps = {
   tabIndex?: number;
 };
 
-function HeadlinePostCard({ post, href, onClick, tabIndex }: { post: PostSummary } & PostLinkProps) {
+function FeaturedPostCard({ post, href, onClick, tabIndex }: { post: PostSummary } & PostLinkProps) {
   return (
     <Link
       href={href}
@@ -33,15 +33,11 @@ function HeadlinePostCard({ post, href, onClick, tabIndex }: { post: PostSummary
       tabIndex={tabIndex}
       className="group relative block focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
     >
-      <article className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-violet-500/15 via-zinc-950/85 to-zinc-950/95 p-8 shadow-[0_40px_120px_-60px_rgba(167,139,250,0.7)] transition-transform duration-500 ease-out group-hover:-translate-y-1 group-hover:border-violet-400/60 group-hover:shadow-[0_60px_160px_-70px_rgba(167,139,250,0.85)]">
-        <div className="pointer-events-none">
-          <div className="absolute -top-28 -left-12 h-56 w-56 rounded-full bg-violet-500/25 blur-3xl transition-opacity duration-500 group-hover:opacity-70" />
-          <div className="absolute -bottom-32 right-0 h-64 w-64 rounded-full bg-fuchsia-500/20 blur-3xl transition-opacity duration-500 group-hover:opacity-60" />
-        </div>
-        <div className="relative flex flex-col gap-6">
-          <div className="flex flex-wrap items-center justify-between gap-3 text-[0.65rem] uppercase tracking-[0.35em] text-violet-100/80">
-            <span>Headline</span>
+      <article className="rounded-3xl border border-white/10 bg-zinc-950/80 p-8 shadow-[0_30px_70px_-50px_rgba(0,0,0,0.9)] transition-transform duration-500 ease-out group-hover:-translate-y-1 group-hover:border-violet-400/60 group-hover:shadow-[0_40px_90px_-60px_rgba(0,0,0,0.9)]">
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-[0.65rem] uppercase tracking-[0.3em] text-zinc-500">
             <span>{dateFormatter.format(new Date(post.date))}</span>
+            <span className="font-medium text-violet-200/80">{post.readingTime}</span>
           </div>
 
           <div className="flex flex-col gap-4">
@@ -52,7 +48,6 @@ function HeadlinePostCard({ post, href, onClick, tabIndex }: { post: PostSummary
           </div>
 
           <div className="flex flex-wrap items-center gap-4 text-xs uppercase tracking-[0.25em] text-zinc-300/80">
-            <span className="text-violet-200/80">{post.readingTime}</span>
             {post.tags.length > 0 && (
               <div className="flex flex-wrap gap-2 text-[0.65rem] text-zinc-400">
                 {post.tags.map((tag) => (
@@ -108,10 +103,10 @@ function RecentPostItem({ post, href, onClick, tabIndex }: { post: PostSummary }
   );
 }
 
-export function BlogMain({ visible, headlinePost, recentPosts }: BlogMainProps) {
+export function BlogMain({ visible, featuredPost, recentPosts }: BlogMainProps) {
   const { isTransitioning, handleLinkClick } = usePageTransition("home");
   const isInteractive = visible && !isTransitioning;
-  const hasPosts = Boolean(headlinePost || recentPosts.length > 0);
+  const hasPosts = Boolean(featuredPost || recentPosts.length > 0);
 
   return (
     <>
@@ -170,16 +165,15 @@ export function BlogMain({ visible, headlinePost, recentPosts }: BlogMainProps) 
 
           {hasPosts ? (
             <div className="flex flex-col gap-12">
-              {headlinePost && (
+              {featuredPost && (
                 <section className="flex flex-col gap-6">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold uppercase tracking-[0.4em] text-violet-200/80">Headline</h3>
-                    <span className="text-xs uppercase tracking-[0.3em] text-zinc-500">Editor&apos;s pick</span>
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.4em] text-violet-200/80">Featured</h3>
                   </div>
-                  <HeadlinePostCard
-                    post={headlinePost}
-                    href={`/posts/${headlinePost.slug}`}
-                    onClick={(event) => handleLinkClick(event, `/posts/${headlinePost.slug}`)}
+                  <FeaturedPostCard
+                    post={featuredPost}
+                    href={`/posts/${featuredPost.slug}`}
+                    onClick={(event) => handleLinkClick(event, `/posts/${featuredPost.slug}`)}
                     tabIndex={isInteractive ? undefined : -1}
                   />
                 </section>
@@ -188,7 +182,7 @@ export function BlogMain({ visible, headlinePost, recentPosts }: BlogMainProps) 
               {recentPosts.length > 0 && (
                 <section className="flex flex-col gap-6">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold uppercase tracking-[0.4em] text-zinc-200">Recent</h3>
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.35em] text-zinc-300 sm:text-sm">Recent</h3>
                     <Link
                       href="/archive"
                       onClick={(event) => handleLinkClick(event, "/archive")}
