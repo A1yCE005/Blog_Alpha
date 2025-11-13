@@ -5,7 +5,7 @@ type PageProps = {
   searchParams?: Record<string, string | string[] | undefined>;
 };
 
-const MAX_BLOG_POSTS = 5;
+const MAX_BLOG_POSTS = 6;
 
 export default async function Page({ searchParams }: PageProps) {
   const posts = (await getAllPosts()).slice(0, MAX_BLOG_POSTS);
